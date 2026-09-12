@@ -1,9 +1,11 @@
 package com.eatda.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -11,202 +13,246 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.eatda.app.data.model.FoodCategory
-import com.eatda.app.data.model.FoodItem
-import com.eatda.app.ui.theme.EatdaColors
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import com.eatda.app.data.*
+import com.eatda.app.data.model.*
+import com.eatda.app.ui.theme.*
 
+/* ────────────────────────────────────────────────────────────
+   MarketArrivalSheet — 싱싱마켓 구매 수신 팝업
+   itda-shop.jsx PurchasePopup 재현 (Jetpack Compose)
+   ──────────────────────────────────────────────────────────── */
 @Composable
 fun MarketArrivalSheet(
-    items: List<FoodItem>,
-    colors: EatdaColors,
+    colors:    EatdaColors,
+    items:     List<FoodItem>,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    if (items.isEmpty()) return
+    val allergenHits = items.filter { it.isAllergen }
+    val totalCount   = items.size
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        /* 딤 배경 */
         Box(
-            Modifier.fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(colors.overlay),
+            contentAlignment = Alignment.Center,
         ) {
+            /* 카드 */
             Column(
                 modifier = Modifier
+                    .widthIn(max = 330.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                    .padding(horizontal = 22.dp)
+                    .clip(RoundedCornerShape(20.dp))
                     .background(colors.surface)
-                    .padding(horizontal = 20.dp, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .padding(top = 20.dp, start = 18.dp, end = 18.dp, bottom = 18.dp),
             ) {
-                // 출처 뱃지
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+
+                /* 1. 출처 배지 */
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(colors.surfaceAlt)
+                        .padding(horizontal = 11.dp, vertical = 5.dp),
                 ) {
-                    Box(
-                        Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(colors.accentSoft),
-                        contentAlignment = Alignment.Center,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
-                        Text("🛒", fontSize = 12.sp)
-                    }
-                    Text(
-                        "싱싱마켓에서 도착",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.textMuted,
-                    )
-                }
-
-                // 제목
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "구매한 식재료가 있어요",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.text,
-                    )
-                    Text(
-                        "${items.size}개 상품을 마이 냉장고 재고에 넣을까요?",
-                        fontSize = 13.sp,
-                        color = colors.textMuted,
-                    )
-                }
-
-                // 상품 목록
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items.take(3).forEach { item ->
-                        MarketItemRow(item = item, colors = colors)
-                    }
-                    if (items.size > 3) {
+                        Text("📦", fontSize = 12.sp)
                         Text(
-                            "외 ${items.size - 3}개 상품",
-                            fontSize = 12.sp,
+                            "싱싱마켓에서 도착",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
                             color = colors.textMuted,
-                            modifier = Modifier.padding(start = 4.dp),
                         )
                     }
                 }
 
-                // 알레르기 경고
-                if (items.any { it.isAllergen }) {
+                Spacer(Modifier.height(12.dp))
+
+                /* 2. 제목 */
+                Text(
+                    "구매한 식재료가 있어요",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = colors.text,
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                /* 3. 본문 */
+                Text(
+                    "${totalCount}개 상품을\n모아밥 냉장고 재고에 넣을까요?",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontSize = 13.sp,
+                    color = colors.textMuted,
+                    lineHeight = 20.sp,
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                /* 4. 항목 리스트 */
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 240.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items.take(5).forEach { item ->
+                        MarketItemRow(colors = colors, item = item)
+                    }
+                }
+
+                /* 5. 알레르기 경고 */
+                if (allergenHits.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(colors.dangerSoft)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("⚠️", fontSize = 14.sp)
+                        Text("⚠️", fontSize = 16.sp)
                         Text(
-                            items.filter { it.isAllergen }.joinToString(", ") { it.name } +
-                                    " — 등록된 알레르기 재료가 포함되어 있어요",
-                            fontSize = 12.sp,
+                            buildAnnotatedString {
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                                    append(allergenHits.joinToString(", ") { it.name })
+                                }
+                                append(" — 등록된 알레르기 재료가 포함되어 있어요")
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
                             color = colors.danger,
-                            fontWeight = FontWeight.Medium,
+                            lineHeight = 16.sp,
                         )
                     }
                 }
 
-                // 버튼
+                Spacer(Modifier.height(12.dp))
+
+                /* 6. 버튼 행 */
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    // 취소 버튼
-                    Box(
+                    /* 나중에 */
+                    TextButton(
+                        onClick = onDismiss,
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(colors.surfaceAlt)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                            .background(colors.surface)
                             .height(48.dp),
-                        contentAlignment = Alignment.Center,
                     ) {
-                        TextButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            Text("나중에", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.textMuted)
-                        }
+                        Text(
+                            "나중에",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textMuted,
+                        )
                     }
-                    // 확인 버튼
-                    Box(
+
+                    /* 모아밥 냉장고에 넣기 */
+                    TextButton(
+                        onClick = onConfirm,
                         modifier = Modifier
                             .weight(2f)
-                            .clip(RoundedCornerShape(13.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(colors.accent)
                             .height(48.dp),
-                        contentAlignment = Alignment.Center,
                     ) {
-                        TextButton(
-                            onClick = onConfirm,
-                            modifier = Modifier.fillMaxSize(),
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            Text("🔒 마이 냉장고에 넣기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("🧊", fontSize = 16.sp)
+                            Text(
+                                "모아밥 냉장고에 넣기",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                            )
                         }
                     }
                 }
-
-                Spacer(Modifier.height(8.dp))
             }
         }
     }
 }
 
+/* ── 항목 행 ── */
 @Composable
-private fun MarketItemRow(item: FoodItem, colors: EatdaColors) {
-    val daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), item.expiry)
+private fun MarketItemRow(colors: EatdaColors, item: FoodItem) {
+    val cat      = item.category
+    val catColor = Color(cat.hexColor)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(colors.surfaceAlt)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(categoryEmoji(item.category), fontSize = 24.sp)
-        Column(Modifier.weight(1f)) {
+        /* 이모지 박스 */
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(catColor.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
-                item.name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                "${item.qty} · 소비기한 D-$daysLeft",
-                fontSize = 11.sp,
-                color = colors.textMuted,
+                foodEmoji[item.name] ?: item.name.first().toString(),
+                fontSize = 16.sp,
             )
         }
-        Text("›", fontSize = 18.sp, color = colors.textFaint)
-    }
-}
 
-private fun categoryEmoji(category: FoodCategory) = when (category) {
-    FoodCategory.VEGETABLE -> "🥬"
-    FoodCategory.FRUIT     -> "🍎"
-    FoodCategory.MEAT      -> "🥩"
-    FoodCategory.SEAFOOD   -> "🐟"
-    FoodCategory.DAIRY     -> "🥛"
-    FoodCategory.GRAIN     -> "🌾"
-    FoodCategory.BEVERAGE  -> "🧃"
-    FoodCategory.SAUCE     -> "🫙"
+        /* 이름 + 메타 */
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                item.name,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.text,
+            )
+            Text(
+                buildString {
+                    append(item.qty ?: "1개")
+                    val dl = item.daysLeft()
+                    if (dl >= 0) append(" · D-$dl")
+                },
+                fontSize = 10.sp,
+                color = colors.textFaint,
+                modifier = Modifier.padding(top = 1.dp),
+            )
+        }
+
+        /* 화살표 */
+        Text("›", fontSize = 14.sp, color = colors.textFaint)
+    }
 }
