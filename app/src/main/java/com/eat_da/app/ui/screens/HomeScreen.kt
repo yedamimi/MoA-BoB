@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,7 +43,6 @@ fun HomeScreen(
     onGoNotif: () -> Unit,
     onGoRecipes: () -> Unit,
     onGoInv: () -> Unit,
-    // ↓ 추가
     marketArrivals: List<FoodItem> = emptyList(),
     onDismissMarket: () -> Unit = {},
     onConfirmMarket: () -> Unit = {},
@@ -54,7 +55,7 @@ fun HomeScreen(
         FullHomeScreen(
             colors, sizes, inventory, criticalItems, onOpenItem,
             onGoNotif, onGoRecipes, onGoInv,
-            marketArrivals, onDismissMarket, onConfirmMarket,  // ↓ 추가
+            marketArrivals, onDismissMarket, onConfirmMarket,
         )
     }
 }
@@ -167,7 +168,6 @@ private fun FullHomeScreen(
 
     val context = LocalContext.current
 
-    // 임시 OCR 확인
     val scope = rememberCoroutineScope()
     var ocrResult by remember { mutableStateOf<String?>(null) }
 
@@ -183,7 +183,6 @@ private fun FullHomeScreen(
         }
     }
 
-    // ── 리스트 ──────────────────────────────────────────────────────────────
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.bg),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
@@ -202,14 +201,13 @@ private fun FullHomeScreen(
                 Text(
                     buildAnnotatedString {
                         append("길민재 님의 ")
-                        pushStyle(androidx.compose.ui.text.SpanStyle(color = colors.accent))
+                        pushStyle(SpanStyle(color = colors.accent))
                         append("냉장고")
                         pop()
                     },
-                    fontSize = if (sizes.isA11y) 25.sp else 23.sp,
+                    fontSize = if (sizes.fontBase >= 18) 25.sp else 23.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = colors.text,
-                    lineHeight = (if (sizes.isA11y) 25 else 23).sp * 1.25f,
                 )
             }
         }
@@ -249,16 +247,22 @@ private fun FullHomeScreen(
             }
         }
 
-        // 싱싱마켓 배너
+        // ── 싱싱마켓 배너 (블루 계열) ──────────────────────────────────────
         item {
+            val shopBrand     = Color(0xFF2F6DB5)
+            val shopBrandSoft = Color(0xFFE4EDF7)
+            val shopBrandDeep = Color(0xFF1E4E85)
+
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(colors.accentSoft)
-                    .border(1.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                    .background(
+                        Brush.linearGradient(listOf(shopBrandSoft, Color(0xFFD6E6F7)))
+                    )
+                    .border(1.dp, shopBrand.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
                     .clickable {
                         val intent = Intent(context, com.eatda.app.ui.shop.ShopWebViewActivity::class.java)
                         context.startActivity(intent)
@@ -269,9 +273,9 @@ private fun FullHomeScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(colors.accent),
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(shopBrand),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("🛒", fontSize = 20.sp)
@@ -280,24 +284,36 @@ private fun FullHomeScreen(
                     Text(
                         "싱싱마켓",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.accentDeep,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = shopBrandDeep,
                     )
                     Text(
                         "구매하면 냉장고 재고에 자동 추가",
                         fontSize = 11.sp,
-                        color = colors.textMuted,
+                        color = shopBrand.copy(alpha = 0.7f),
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                EatdaIcon(EatdaIcons.ChevronRight, tint = colors.accent, size = 16.dp)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(shopBrand)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                ) {
+                    Text(
+                        "바로가기 →",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+                }
             }
         }
 
         item { Spacer(Modifier.height(28.dp)) }
     }
 
-    // ── OCR 결과 다이얼로그 ───────────────────────────────────────────────────
+    // OCR 결과 다이얼로그
     ocrResult?.let { result ->
         AlertDialog(
             onDismissRequest = { ocrResult = null },
@@ -309,11 +325,11 @@ private fun FullHomeScreen(
         )
     }
 
-    // ── 마켓 구매 도착 팝업 ──────────────────────────────────────────────────
+    // 마켓 구매 도착 팝업
     if (marketArrivals.isNotEmpty()) {
         MarketArrivalSheet(
-            items     = marketArrivals,
             colors    = colors,
+            items     = marketArrivals,
             onDismiss = onDismissMarket,
             onConfirm = onConfirmMarket,
         )
@@ -471,8 +487,8 @@ private fun ExpiredBannerItem(
                     .clip(RoundedCornerShape(14.dp))
                     .background(colors.dangerSoft)
                     .border(
-                        if (colors.isA11y) 2.dp else 1.dp,
-                        colors.danger.copy(alpha = if (colors.isA11y) 1f else 0.2f),
+                        1.dp,
+                        colors.danger.copy(alpha = 0.2f),
                         RoundedCornerShape(14.dp),
                     ),
             ) {
@@ -566,15 +582,3 @@ private fun ExpiredBannerItem(
         }
     }
 }
-
-// ── 유틸 ──────────────────────────────────────────────────────────────────────
-
-private fun buildAnnotatedString(
-    block: androidx.compose.ui.text.AnnotatedString.Builder.() -> Unit,
-): androidx.compose.ui.text.AnnotatedString {
-    val builder = androidx.compose.ui.text.AnnotatedString.Builder()
-    builder.block()
-    return builder.toAnnotatedString()
-}
-
-private val EatdaSizes.isA11y: Boolean get() = fontBase == 18
