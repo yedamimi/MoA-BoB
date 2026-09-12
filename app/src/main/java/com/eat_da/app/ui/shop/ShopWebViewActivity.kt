@@ -28,7 +28,6 @@ class ShopWebViewActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
             ShopWebViewScreen(onClose = { finish() })
         }
@@ -56,7 +55,6 @@ private fun ShopWebViewScreen(onClose: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // 닫기 버튼
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -67,8 +65,6 @@ private fun ShopWebViewScreen(onClose: () -> Unit) {
             ) {
                 Text("✕", fontSize = 16.sp, color = Color.White, fontWeight = FontWeight.Bold)
             }
-
-            // 타이틀
             Text(
                 "🛒 싱싱마켓",
                 fontSize = 16.sp,
@@ -76,24 +72,17 @@ private fun ShopWebViewScreen(onClose: () -> Unit) {
                 color = Color.White,
                 modifier = Modifier.weight(1f),
             )
-
-            // 연동 뱃지
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .background(Color(0xFF2EC57E))
                     .padding(horizontal = 10.dp, vertical = 4.dp),
             ) {
-                Text(
-                    "냉장고 연동",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                )
+                Text("냉장고 연동", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
 
-        // 로딩 프로그레스 바
+        // 로딩 프로그레스
         if (isLoading) {
             LinearProgressIndicator(
                 progress = { progress / 100f },
@@ -103,40 +92,44 @@ private fun ShopWebViewScreen(onClose: () -> Unit) {
             )
         }
 
-        // WebView
+        // ✅ 핵심 수정: fillMaxSize() → fillMaxWidth() + weight(1f)
+        // fillMaxSize()를 Column 안에서 쓰면 WebView가 높이를 올바르게 받지 못해 빈 화면이 됩니다.
+        // weight(1f)로 해야 헤더 이후 남은 공간을 올바르게 채웁니다.
         AndroidView(
             factory = { context ->
                 WebView(context).apply {
                     settings.apply {
-                        javaScriptEnabled       = true      // Firebase JS SDK 실행에 필수
-                        domStorageEnabled       = true      // localStorage 활성화
-                        allowFileAccessFromFileURLs = true  // assets 내부 접근 허용
+                        javaScriptEnabled                = true
+                        domStorageEnabled                = true
+                        allowFileAccessFromFileURLs      = true
                         allowUniversalAccessFromFileURLs = true
-                        mixedContentMode        = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        mixedContentMode =
+                            android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     }
-
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(
                             view: WebView?,
                             request: WebResourceRequest?,
                         ): Boolean {
-                            // 같은 WebView 안에서 탐색 (외부 브라우저 방지)
+                            // eatda://close → 앱으로 복귀
+                            if (request?.url?.scheme == "eatda") {
+                                onClose()   // finish()는 Composable 안에서 직접 호출 불가 → onClose 콜백 사용
+                                return true
+                            }
                             return false
                         }
                     }
-
                     webChromeClient = object : WebChromeClient() {
                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
                             progress = newProgress
                         }
                     }
-
-                    // assets/shop.html 로드
                     loadUrl("file:///android_asset/shop.html")
                 }
             },
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .weight(1f)          
                 .navigationBarsPadding(),
         )
     }
