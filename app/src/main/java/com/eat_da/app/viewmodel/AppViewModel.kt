@@ -263,10 +263,11 @@ class AppViewModel : ViewModel() {
             }
         }
 
-        _state.update {
-            it.copy(
+        _state.update { s ->
+            s.copy(
+                inventory      = s.inventory + s.marketArrivals,   // ← 이게 없었음
                 marketArrivals = emptyList(),
-                toast = "냉장고 재고가 업데이트됐어요 🧊"
+                toast          = "냉장고 재고가 업데이트됐어요 🧊"
             )
         }
     }
