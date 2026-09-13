@@ -53,9 +53,9 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
     }
     val baseDensity = LocalDensity.current
 
-    val scanSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scanSheetState  = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val voiceSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val itemSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val itemSheetState  = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     CompositionLocalProvider(
         LocalDensity provides Density(
@@ -143,7 +143,6 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 colors = colors,
                 sheetState = scanSheetState,
                 onPick = vm::startScan,
-                onPhonePick = vm::openPhoneScan,
                 onDismiss = vm::closeScanSheet,
             )
         }
@@ -154,6 +153,8 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 item = item,
                 sheetState = itemSheetState,
                 onDismiss = vm::closeItem,
+                onUpdateExpiry = { newExpiry -> vm.updateItemExpiry(item.id, newExpiry) },
+                onUpdateQty    = { newQty    -> vm.updateItemQty(item.id, newQty)    },  // ← 추가
             )
         }
 
@@ -217,9 +218,7 @@ private fun AppScreenContent(
                     sizes = sizes,
                     inventory = state.inventory,
                     recipes = state.recipes,
-                    onRecipeClick = { recipe ->
-                        vm.openRecipe(recipe)
-                    }
+                    onRecipeClick = { recipe -> vm.openRecipe(recipe) },
                 )
                 Screen.RECIPE_DETAIL -> {
                     state.selectedRecipe?.let { recipe ->
@@ -227,9 +226,7 @@ private fun AppScreenContent(
                             colors = colors,
                             sizes = sizes,
                             recipe = recipe,
-                            onBack = {
-                                vm.closeRecipe()
-                            }
+                            onBack = { vm.closeRecipe() },
                         )
                     }
                 }
