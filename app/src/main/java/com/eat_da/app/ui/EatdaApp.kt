@@ -94,47 +94,61 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
             }
         }
 
-        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            EatdaTopBar(
-                colors = colors,
-                hasNotif = state.notifications.any { it.urgent },
-                onNotif = { vm.navigate(Screen.NOTIFICATIONS) },
-                onProfile = { vm.navigate(Screen.MYPAGE) },
-                profileActive = state.screen == Screen.MYPAGE,
-            )
-            AppScreenContent(
-                modifier = Modifier.weight(1f),
-                state = state,
-                colors = colors,
-                sizes = sizes,
-                ttsPlaying = ttsPlaying,
-                vm = vm,
-            )
+        // FAB을 바텀 네비 위에 오버레이하기 위해 Box로 감쌈
+        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                EatdaTopBar(
+                    colors = colors,
+                    hasNotif = state.notifications.any { it.urgent },
+                    onNotif = { vm.navigate(Screen.NOTIFICATIONS) },
+                    onProfile = { vm.navigate(Screen.MYPAGE) },
+                    profileActive = state.screen == Screen.MYPAGE,
+                )
+                AppScreenContent(
+                    modifier = Modifier.weight(1f),
+                    state = state,
+                    colors = colors,
+                    sizes = sizes,
+                    ttsPlaying = ttsPlaying,
+                    vm = vm,
+                )
 
-            EatdaBottomNav(
-                colors = colors,
-                sizes = sizes,
-                currentScreen = state.screen,
-                onNav = { screen ->
-                    if (state.activeScanMode != null) vm.closeScan()
-                    if (state.phoneScanMode != null) vm.closePhoneScan()
-                    vm.navigate(screen)
-                },
-                onScan = vm::openScanSheet,
-            )
+                EatdaBottomNav(
+                    colors = colors,
+                    sizes = sizes,
+                    currentScreen = state.screen,
+                    onNav = { screen ->
+                        if (state.activeScanMode != null) vm.closeScan()
+                        if (state.phoneScanMode != null) vm.closePhoneScan()
+                        vm.navigate(screen)
+                    },
+                    onScan = vm::openScanSheet,
+                )
 
-            Box(
-                modifier = Modifier.fillMaxWidth().height(18.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(modifier = Modifier.width(110.dp).height(4.dp)) {
-                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawRoundRect(
-                            color = DefaultEatdaColors.borderStrong.copy(alpha = 0.6f),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f),
-                        )
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(18.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(modifier = Modifier.width(110.dp).height(4.dp)) {
+                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawRoundRect(
+                                color = DefaultEatdaColors.borderStrong.copy(alpha = 0.6f),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f),
+                            )
+                        }
                     }
                 }
+            }
+
+            // 음성 어시스턴트 FAB — 스캔/음성 오버레이 열려있을 때는 숨김
+            if (!state.voiceOverlayOpen && state.activeScanMode == null) {
+                VoiceFab(
+                    colors   = colors,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 20.dp, bottom = 76.dp),  // 바텀 네비 위
+                    onClick  = vm::openVoice,
+                )
             }
         }
 
@@ -149,20 +163,23 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
 
         state.openItem?.let { item ->
             ItemDetailSheet(
-                colors = colors,
-                item = item,
-                sheetState = itemSheetState,
-                onDismiss = vm::closeItem,
+                colors         = colors,
+                item           = item,
+                sheetState     = itemSheetState,
+                onDismiss      = vm::closeItem,
                 onUpdateExpiry = { newExpiry -> vm.updateItemExpiry(item.id, newExpiry) },
-                onUpdateQty    = { newQty    -> vm.updateItemQty(item.id, newQty)    },  // ← 추가
+                onUpdateQty    = { newQty    -> vm.updateItemQty(item.id, newQty) },
             )
         }
 
         if (state.voiceOverlayOpen) {
             VoiceOverlaySheet(
-                colors = colors,
-                sheetState = voiceSheetState,
-                onDismiss = vm::closeVoice,
+                colors            = colors,
+                sheetState        = voiceSheetState,
+                inventory         = state.inventory,
+                pendingDeleteItem = state.pendingDeleteItem,
+                onCommand         = vm::handleVoiceCommand,
+                onDismiss         = vm::closeVoice,
             )
         }
 
@@ -195,13 +212,18 @@ private fun AppScreenContent(
         ) { screen ->
             when (screen) {
                 Screen.HOME -> HomeScreen(
-                    colors = colors, sizes = sizes,
-                    inventory = state.inventory,
+                    colors         = colors,
+                    sizes          = sizes,
+                    inventory      = state.inventory,
                     simplifiedHome = state.settings.simplifiedHome,
-                    onOpenItem = vm::openItem,
-                    onGoNotif = { vm.navigate(Screen.NOTIFICATIONS) },
-                    onGoRecipes = { vm.navigate(Screen.RECIPES) },
-                    onGoInv = { vm.navigate(Screen.INVENTORY) },
+                    onOpenItem     = vm::openItem,
+                    onGoNotif      = { vm.navigate(Screen.NOTIFICATIONS) },
+                    onGoRecipes    = { vm.navigate(Screen.RECIPES) },
+                    onGoInv        = { vm.navigate(Screen.INVENTORY) },
+                    onOpenVoice    = vm::openVoice,
+                    marketArrivals  = state.marketArrivals,
+                    onDismissMarket = vm::dismissMarketArrivals,
+                    onConfirmMarket = vm::confirmMarketArrivals,
                 )
                 Screen.INVENTORY -> InventoryScreen(
                     colors = colors, sizes = sizes,
