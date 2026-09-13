@@ -3,6 +3,7 @@ package com.eatda.app.viewmodel
 import androidx.lifecycle.ViewModel
 import com.eatda.app.data.defaultAllergens
 import com.eatda.app.data.model.*
+import com.eatda.app.util.VoiceCommand
 import com.google.firebase.database.ChildEventListener
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -69,7 +70,8 @@ data class AppState(
     val firebaseConnected: Boolean = false,
     val pendingHaptic: HapticEvent? = null,
     val pendingTts: String? = null,
-    val marketArrivals: List<FoodItem> = emptyList(),   // 마켓 구매 도착 목록
+    val marketArrivals: List<FoodItem> = emptyList(),
+    val pendingDeleteItem: FoodItem? = null,   // 음성 삭제 확인 대기 아이템
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -150,7 +152,6 @@ class AppViewModel : ViewModel() {
                 _state.update { it.copy(firebaseConnected = false) }
             }
         }
-        // stocks 노드 (YOLO 수량)
         Firebase.database.reference.child("stocks").addValueEventListener(inventoryListener!!)
     }
 
@@ -234,29 +235,24 @@ class AppViewModel : ViewModel() {
 
         arrivals.forEach { item ->
             val stockKey = when (item.name) {
-                "오이" -> "oi"
-                "사과" -> "apple"
-                "바나나" -> "banana"
-                "오렌지" -> "orange"
+                "오이"    -> "oi"
+                "사과"    -> "apple"
+                "바나나"  -> "banana"
+                "오렌지"  -> "orange"
                 "브로콜리" -> "broccoli"
-                "당근" -> "carrot"
+                "당근"    -> "carrot"
                 "샌드위치" -> "sandwich"
-                "피자" -> "pizza"
-                "도넛" -> "donut"
-                "케이크" -> "cake"
-                "핫도그" -> "hot dog"
-                "두부" -> "tofu"
-                else -> item.name
+                "피자"    -> "pizza"
+                "도넛"    -> "donut"
+                "케이크"  -> "cake"
+                "핫도그"  -> "hot dog"
+                "두부"    -> "tofu"
+                else      -> item.name
             }
 
-            val count = item.qty
-                .filter { it.isDigit() }
-                .toIntOrNull() ?: 1
+            val count = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
 
-            val stockRef = Firebase.database.reference
-                .child("stocks")
-                .child(stockKey)
-
+            val stockRef = Firebase.database.reference.child("stocks").child(stockKey)
             stockRef.get().addOnSuccessListener { snapshot ->
                 val currentCount = snapshot.getValue(Int::class.java) ?: 0
                 stockRef.setValue(currentCount + count)
@@ -265,9 +261,9 @@ class AppViewModel : ViewModel() {
 
         _state.update { s ->
             s.copy(
-                inventory      = s.inventory + s.marketArrivals,   // ← 이게 없었음
+                inventory      = s.inventory + s.marketArrivals,
                 marketArrivals = emptyList(),
-                toast          = "냉장고 재고가 업데이트됐어요 🧊"
+                toast          = "냉장고 재고가 업데이트됐어요 🧊",
             )
         }
     }
@@ -354,7 +350,7 @@ class AppViewModel : ViewModel() {
         ScanResult(id = id, name = name, confidence = confidence, isAllergen = isAllergen, qty = qty)
     }.getOrNull()
 
-    // ── 상태 변경 함수들 ──────────────────────────────────────────────────────
+    // ── 화면 / 시트 제어 ──────────────────────────────────────────────────────
 
     fun navigate(screen: Screen) = _state.update { it.copy(screen = screen) }
 
@@ -436,6 +432,128 @@ class AppViewModel : ViewModel() {
         _state.update { it.copy(settings = newSettings, notifications = notifs) }
     }
 
+    // ── 재고 항목 수정 ────────────────────────────────────────────────────────
+
+    fun updateItemExpiry(itemId: Int, newExpiry: String) {
+        val newDate = LocalDate.parse(newExpiry)
+        _state.update { s ->
+            s.copy(
+                inventory = s.inventory.map { item ->
+                    if (item.id == itemId) item.copy(expiry = newDate) else item
+                },
+                openItem = s.openItem?.let {
+                    if (it.id == itemId) it.copy(expiry = newDate) else it
+                },
+                toast = "유통기한이 수정됐어요 ✏️",
+            )
+        }
+    }
+
+    fun updateItemQty(itemId: Int, newQty: String) {
+        _state.update { s ->
+            s.copy(
+                inventory = s.inventory.map { item ->
+                    if (item.id == itemId) item.copy(qty = newQty) else item
+                },
+                openItem = s.openItem?.let {
+                    if (it.id == itemId) it.copy(qty = newQty) else it
+                },
+                toast = "개수가 수정됐어요 ✏️",
+            )
+        }
+    }
+
+    // ── 음성 명령 처리 ────────────────────────────────────────────────────────
+
+    fun handleVoiceCommand(command: VoiceCommand) {
+        val inv = _state.value.inventory
+        when (command) {
+
+            is VoiceCommand.ExpiryQuery -> {
+                val item = inv.firstOrNull { it.name == command.foodName }
+                val msg = when {
+                    item == null        -> "${command.foodName}은 냉장고에 등록되지 않았습니다."
+                    item.expiry == null -> "${item.name}의 유통기한 정보가 없습니다."
+                    else -> {
+                        val d    = item.expiry
+                        val days = item.daysLeft()
+                        buildString {
+                            append("${item.name}의 유통기한은 ${d.monthValue}월 ${d.dayOfMonth}일입니다.")
+                            when {
+                                days <= 0 -> append(" 이미 만료됐습니다.")
+                                days == 1 -> append(" 내일 만료됩니다.")
+                                days <= 3 -> append(" ${days}일 남았습니다.")
+                            }
+                        }
+                    }
+                }
+                _state.update { it.copy(pendingTts = msg) }
+            }
+
+            is VoiceCommand.SearchFood -> {
+                val items = inv.filter { it.name == command.foodName }
+                val msg = if (items.isEmpty()) {
+                    "${command.foodName}은 냉장고에 없습니다."
+                } else {
+                    val total = items.sumOf { it.qty.filter { c -> c.isDigit() }.toIntOrNull() ?: 1 }
+                    "네, ${command.foodName}이 ${total}개 등록되어 있습니다."
+                }
+                _state.update { it.copy(pendingTts = msg) }
+            }
+
+            is VoiceCommand.ExpiringSoon -> {
+                val threshold = LocalDate.now().plusDays(3)
+                val expiring  = inv
+                    .filter { it.expiry != null && !it.expiry.isAfter(threshold) }
+                    .sortedBy { it.expiry }
+                val msg = when (expiring.size) {
+                    0    -> "3일 이내 유통기한이 만료되는 식품은 없습니다."
+                    1    -> "3일 이내 유통기한이 만료되는 식품은 ${expiring[0].name}입니다."
+                    else -> {
+                        val front = expiring.dropLast(1).joinToString(", ") { it.name }
+                        "3일 이내 유통기한이 만료되는 식품은 ${front}과 ${expiring.last().name}입니다."
+                    }
+                }
+                _state.update { it.copy(pendingTts = msg) }
+            }
+
+            is VoiceCommand.DeleteFood -> {
+                val item = inv.firstOrNull { it.name == command.foodName }
+                if (item != null) {
+                    _state.update { it.copy(
+                        pendingDeleteItem = item,
+                        pendingTts        = "${item.name}을 삭제할까요?",
+                    )}
+                } else {
+                    _state.update { it.copy(pendingTts = "${command.foodName}은 냉장고에 없습니다.") }
+                }
+            }
+
+            is VoiceCommand.Confirm -> {
+                val item = _state.value.pendingDeleteItem ?: return
+                _state.update { s -> s.copy(
+                    inventory         = s.inventory.filter { it.id != item.id },
+                    pendingDeleteItem  = null,
+                    pendingTts        = "${item.name}을 삭제했습니다.",
+                    toast             = "${item.name} 삭제됨 🗑️",
+                )}
+            }
+
+            is VoiceCommand.Cancel -> {
+                _state.update { it.copy(
+                    pendingDeleteItem = null,
+                    pendingTts        = "취소했습니다.",
+                )}
+            }
+
+            is VoiceCommand.Unknown -> {
+                _state.update { it.copy(pendingTts = "죄송합니다. 다시 말씀해주세요.") }
+            }
+        }
+    }
+
+    // ── 이벤트 소비 ───────────────────────────────────────────────────────────
+
     fun clearHaptic() = _state.update { it.copy(pendingHaptic = null) }
     fun clearTts()    = _state.update { it.copy(pendingTts = null) }
 
@@ -443,7 +561,6 @@ class AppViewModel : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        // stocks 리스너 (inventoryListener는 stocks에 달려있음)
         inventoryListener?.let  { Firebase.database.reference.child("stocks").removeEventListener(it) }
         scanResultsListener?.let { db.child("scan_results").removeEventListener(it) }
         scanStatusListener?.let  { db.child("scan_status").removeEventListener(it) }
