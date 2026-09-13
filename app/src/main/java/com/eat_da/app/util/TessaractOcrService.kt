@@ -39,3 +39,4 @@ object TesseractOcrService {
         return null
     }
 }
+ 
