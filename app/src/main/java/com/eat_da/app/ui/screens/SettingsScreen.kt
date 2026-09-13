@@ -9,13 +9,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -26,10 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eatda.app.ui.components.*
 import com.eatda.app.ui.theme.*
-import com.eatda.app.util.TtsService
 import com.eatda.app.viewmodel.AppSettings
 import com.eatda.app.viewmodel.FontScale
-import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -39,9 +35,6 @@ fun SettingsScreen(
     onUpdateSettings: (AppSettings) -> Unit,
     onGoMyPage: () -> Unit = {},
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.bg),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
@@ -127,31 +120,6 @@ fun SettingsScreen(
                     right = {
                         EatdaToggle(colors, on = settings.a11yMode, label = "접근성 모드") {
                             onUpdateSettings(settings.copy(a11yMode = it))
-                        }
-                    },
-                )
-                SettingsDivider(colors)
-                SettingsRow(
-                    colors, sizes, EatdaIcons.Volume, "음성 안내 (TTS)", "알림과 경고를 음성으로 재생",
-                    right = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            if (settings.ttsEnabled) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(colors.accentSoft)
-                                        .clickable { scope.launch { TtsService.speak(context, "안녕하세요. 모아밥 음성 안내입니다.") } }
-                                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                                ) {
-                                    Text("테스트 ▶", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.accent)
-                                }
-                            }
-                            EatdaToggle(colors, on = settings.ttsEnabled, label = "음성 안내") {
-                                onUpdateSettings(settings.copy(ttsEnabled = it))
-                            }
                         }
                     },
                 )
