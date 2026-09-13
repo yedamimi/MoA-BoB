@@ -1,8 +1,12 @@
 package com.eatda.app.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import com.eatda.app.data.defaultAllergens
 import com.eatda.app.data.model.*
+import com.eatda.app.util.Household
+import com.eatda.app.util.HouseholdManager
+import com.eatda.app.util.HouseholdMember
 import com.eatda.app.util.VoiceCommand
 import com.google.firebase.database.ChildEventListener
 import com.google.firebase.database.DataSnapshot
@@ -22,7 +26,7 @@ import kotlinx.coroutines.launch
 // ── 열거형 ────────────────────────────────────────────────────────────────────
 
 enum class Screen {
-    HOME, INVENTORY, NOTIFICATIONS, RECIPES, RECIPE_DETAIL, MYPAGE, SETTINGS
+    HOME, INVENTORY, NOTIFICATIONS, RECIPES, RECIPE_DETAIL, MYPAGE, SETTINGS, HOUSEHOLD
 }
 
 enum class FontScale(val label: String) {
@@ -72,24 +76,35 @@ data class AppState(
     val pendingTts: String? = null,
     val marketArrivals: List<FoodItem> = emptyList(),
     val pendingDeleteItem: FoodItem? = null,   // 음성 삭제 확인 대기 아이템
+    val household: Household? = null,
+    val householdMembers: List<HouseholdMember> = emptyList(),
+    val myUserId: String = "",
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
-class AppViewModel : ViewModel() {
+class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(AppState())
     val state: StateFlow<AppState> = _state.asStateFlow()
 
     private val rootDb = Firebase.database.reference
     private val db     = Firebase.database.reference.child("eatda")
+    private val ctx    get() = getApplication<Application>()
 
     private var inventoryListener:    ValueEventListener? = null
     private var scanResultsListener:  ValueEventListener? = null
     private var scanStatusListener:   ValueEventListener? = null
     private var marketListener:       ChildEventListener? = null
+    private var householdMemberListener: ValueEventListener? = null
     private var allergenHapticFired = false
 
     init {
+        val userId = HouseholdManager.getOrCreateUserId(ctx)
+        _state.update { it.copy(myUserId = userId) }
+
+        // 저장된 가구 ID가 있으면 자동 로드
+        HouseholdManager.getSavedHouseholdId(ctx)?.let { loadHousehold(it) }
+
         listenToInventory()
         listenToScanResults()
         listenToScanStatus()
@@ -416,6 +431,53 @@ class AppViewModel : ViewModel() {
     fun openVoice()  = _state.update { it.copy(voiceOverlayOpen = true) }
     fun closeVoice() = _state.update { it.copy(voiceOverlayOpen = false) }
 
+    // ── 공동 냉장고 ───────────────────────────────────────────────────────────
+
+    fun createHousehold(name: String, myName: String) {
+        HouseholdManager.createHousehold(
+            context       = ctx,
+            householdName = name,
+            myName        = myName,
+            onSuccess     = { householdId, _ -> loadHousehold(householdId) },
+            onError       = { msg -> _state.update { it.copy(toast = msg) } },
+        )
+    }
+
+    fun joinHousehold(code: String, myName: String) {
+        HouseholdManager.joinHousehold(
+            context     = ctx,
+            inviteCode  = code,
+            myName      = myName,
+            onSuccess   = { householdId -> loadHousehold(householdId) },
+            onError     = { msg -> _state.update { it.copy(toast = msg) } },
+        )
+    }
+
+    fun leaveHousehold() {
+        val householdId = _state.value.household?.id ?: return
+        householdMemberListener?.let { HouseholdManager.removeListener(householdId, it) }
+        HouseholdManager.leaveHousehold(ctx, householdId) {
+            _state.update { it.copy(household = null, householdMembers = emptyList(), toast = "공동 냉장고에서 나갔어요") }
+        }
+    }
+
+    private fun loadHousehold(householdId: String) {
+        Firebase.database.reference.child("households").child(householdId).get()
+            .addOnSuccessListener { snap ->
+                val name       = snap.child("name").getValue(String::class.java) ?: return@addOnSuccessListener
+                val ownerId    = snap.child("ownerId").getValue(String::class.java) ?: ""
+                val inviteCode = snap.child("inviteCode").getValue(String::class.java) ?: ""
+                val household  = Household(id = householdId, name = name, inviteCode = inviteCode, ownerId = ownerId)
+                _state.update { it.copy(household = household) }
+
+                // 구성원 실시간 구독
+                householdMemberListener?.let { HouseholdManager.removeListener(householdId, it) }
+                householdMemberListener = HouseholdManager.listenToMembers(householdId) { members ->
+                    _state.update { it.copy(householdMembers = members) }
+                }
+            }
+    }
+
     fun dismissToast() = _state.update { it.copy(toast = null) }
 
     fun removeAllergen(id: String) {
@@ -565,5 +627,8 @@ class AppViewModel : ViewModel() {
         scanResultsListener?.let { db.child("scan_results").removeEventListener(it) }
         scanStatusListener?.let  { db.child("scan_status").removeEventListener(it) }
         marketListener?.let      { db.child("inventory").removeEventListener(it) }
+        _state.value.household?.id?.let { hid ->
+            householdMemberListener?.let { HouseholdManager.removeListener(hid, it) }
+        }
     }
 }
