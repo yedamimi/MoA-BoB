@@ -1,3 +1,4 @@
+```
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -33,28 +34,19 @@
     /* ── Layout — position:fixed (WebView height 버그 완전 우회) ── */
     #app{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
 
-    /* ── Status bar ── */
-    .sb{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;flex-shrink:0;position:relative}
-    .sb-time{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
-    .sb-hole{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:22px;height:22px;border-radius:50%;background:#1a1a1a}
-    .sb-icons{display:flex;gap:6px;align-items:center}
 
-    /* ── Header ── */
-    .hdr{padding:4px 16px 10px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-    .hdr-back{width:34px;height:34px;border-radius:10px;background:var(--surfaceAlt);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .hdr-back:active{opacity:.7}
-    .hdr-cart{width:32px;height:32px;border-radius:10px;background:var(--brandSoft);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .hdr-logo{font-size:18px;font-weight:800;letter-spacing:-.01em;flex:1}
-    .hdr-badge{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;background:var(--itdaSoft);color:var(--itdaDeep);font-size:10.5px;font-weight:700;white-space:nowrap;flex-shrink:0}
-    .hdr-moabab{display:flex;align-items:center;gap:5px;padding:6px 11px;border-radius:999px;background:var(--itda);color:#fff;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;border:none;cursor:pointer}
-    .hdr-moabab:active{opacity:.8}
+    /* ── Header (제거됨) ── */
 
     /* ── Search ── */
-    .sw{padding:0 16px 10px;flex-shrink:0}
-    .sr{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:12px;padding:10px 12px;border:1px solid var(--border)}
+    .sw{padding:16px 16px 10px;flex-shrink:0}
+    .sw-row{display:flex;align-items:center;gap:8px}.sr{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:12px;padding:10px 12px;border:1px solid var(--border)}
     .si{flex:1;border:none;outline:none;background:transparent;font-size:13.5px;color:var(--ink);font-family:inherit}
     .si::placeholder{color:var(--inkFaint)}
     .sclr{width:18px;height:18px;border-radius:50%;background:var(--surfaceAlt);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--inkMuted);flex-shrink:0}
+    .cartbtn{width:44px;height:44px;border-radius:12px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
+    .cartbtn:active{opacity:.75}
+    .cartcnt{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--price);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+    .cartcnt.hidden{display:none}
 
     /* ── Category chips ── */
     .cw{display:flex;gap:6px;padding:0 16px 10px;overflow-x:auto;flex-shrink:0}
@@ -118,6 +110,24 @@
     .overlay{position:fixed;inset:0;z-index:60;background:var(--overlay);display:flex;align-items:center;justify-content:center;padding:22px;animation:sm-pop .2s}
     .overlay.hidden{display:none}
 
+    /* ── Cart popup ── */
+    .cart-popup{width:100%;max-width:330px;background:var(--surface);border-radius:20px;padding:22px 18px 18px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:84%;display:flex;flex-direction:column}
+    .cart-title{font-size:17px;font-weight:800;color:var(--ink);margin-bottom:4px}
+    .cart-sub{font-size:12px;color:var(--inkMuted);margin-bottom:14px}
+    .cart-list{overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+    .cart-list::-webkit-scrollbar{display:none}
+    .cart-row{display:flex;align-items:center;gap:9px;padding:9px 10px;background:var(--surfaceAlt);border-radius:10px}
+    .cart-emo{width:34px;height:34px;border-radius:9px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+    .cart-info{flex:1;min-width:0}
+    .cart-name{font-size:12.5px;font-weight:700;color:var(--ink)}
+    .cart-price{font-size:10.5px;color:var(--inkMuted);margin-top:2px}
+    .cart-qty{font-size:12px;font-weight:800;color:var(--brand)}
+    .cart-total{display:flex;justify-content:space-between;align-items:center;padding:11px 2px 12px;border-top:1px solid var(--border);font-size:13px;font-weight:700}
+    .cart-total strong{font-size:15px;color:var(--price)}
+    .cart-close{flex:1;padding:13px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--inkMuted);font-size:13px;font-weight:700}
+    .cart-pay{flex:2;padding:13px;border-radius:12px;background:var(--brand);color:#fff;font-size:13px;font-weight:800}
+    .cart-empty{text-align:center;padding:25px 10px;color:var(--inkFaint);font-size:12px}
+
     /* ── Payment popup ── */
     .popup{width:100%;max-width:330px;background:var(--surface);border-radius:20px;padding:22px 18px 18px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:84%;display:flex;flex-direction:column}
     .pp-icon{width:54px;height:54px;margin:0 auto 12px;border-radius:999px;background:var(--brandSoft);display:flex;align-items:center;justify-content:center}
@@ -180,50 +190,25 @@
 </script>
 
 <div id="app">
-  <!-- Status bar -->
-  <div class="sb">
-    <div class="sb-time">9:30</div>
-    <div class="sb-hole"></div>
-    <div class="sb-icons">
-      <svg width="14" height="10" viewBox="0 0 14 10"><path d="M7 9.3L.3 2.6a9.5 9.5 0 0113.4 0L7 9.3z" fill="currentColor"/></svg>
-      <svg width="14" height="10" viewBox="0 0 14 10"><path d="M13 9.3V.7L1 9.3h12z" fill="currentColor"/></svg>
-      <svg width="22" height="11" viewBox="0 0 22 11"><rect x=".5" y=".5" width="18" height="10" rx="2" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="19.5" y="3.5" width="2" height="4" rx=".5" fill="currentColor"/></svg>
-    </div>
-  </div>
-
-  <!-- Header -->
-  <div class="hdr">
-    <!-- 뒤로가기 -->
-    <button class="hdr-back" onclick="location.href='eatda://close'" aria-label="뒤로">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <path d="M15 19l-7-7 7-7" stroke="#5E6C78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <div class="hdr-cart">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
-        <path d="M4 7h16l-1.4 11.2A2 2 0 0 1 16.6 20H7.4a2 2 0 0 1-2-1.8L4 7z" stroke="#2F6DB5" stroke-width="1.8" stroke-linejoin="round"/>
-        <path d="M8.5 7V5.5a3.5 3.5 0 0 1 7 0V7" stroke="#2F6DB5" stroke-width="1.8" stroke-linecap="round"/>
-      </svg>
-    </div>
-    <div class="hdr-logo">싱싱마켓</div>
-    <!-- 모아밥으로 이동 버튼 -->
-    <button class="hdr-moabab" onclick="location.href='eatda://close'">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-        <path d="M3 12h18M13 6l6 6-6 6" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      모아밥으로
-    </button>
-  </div>
-
   <!-- Search -->
   <div class="sw">
-    <div class="sr">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-        <circle cx="11" cy="11" r="6" stroke="#93A0AA" stroke-width="1.8"/>
-        <path d="M16 16l5 5" stroke="#93A0AA" stroke-width="1.8" stroke-linecap="round"/>
-      </svg>
-      <input class="si" id="si" type="text" placeholder="오늘 뭐 사지?" autocomplete="off" autocorrect="off">
-      <button class="sclr" id="sclr" style="display:none">✕</button>
+    <div class="sw-row">
+      <div class="sr">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+          <circle cx="11" cy="11" r="6" stroke="#93A0AA" stroke-width="1.8"/>
+          <path d="M16 16l5 5" stroke="#93A0AA" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <input class="si" id="si" type="text" placeholder="오늘 뭐 사지?" autocomplete="off" autocorrect="off">
+        <button class="sclr" id="sclr" style="display:none">✕</button>
+      </div>
+      <button class="cartbtn" id="cartbtn" aria-label="장바구니">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
+          <path d="M3.5 4h2l1.7 10.2a2 2 0 0 0 2 1.7h8.5a2 2 0 0 0 1.9-1.4L21 7H7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="20" r="1.3" fill="currentColor"/>
+          <circle cx="18" cy="20" r="1.3" fill="currentColor"/>
+        </svg>
+        <span class="cartcnt hidden" id="cartcnt">0</span>
+      </button>
     </div>
   </div>
 
@@ -254,6 +239,23 @@
   <div class="gbar"><div class="gbar-line"></div></div>
 </div>
 
+<!-- Cart popup -->
+<div class="overlay hidden" id="cart-ov">
+  <div class="cart-popup">
+    <div class="cart-title">장바구니</div>
+    <div class="cart-sub">담은 상품을 확인해 주세요</div>
+    <div class="cart-list" id="cart-list"></div>
+    <div class="cart-total">
+      <span>총 결제금액</span>
+      <strong id="cart-total">0원</strong>
+    </div>
+    <div class="btn-row">
+      <button class="cart-close" id="cart-close">닫기</button>
+      <button class="cart-pay" id="cart-pay">결제하기</button>
+    </div>
+  </div>
+</div>
+
 <!-- Payment popup -->
 <div class="overlay hidden" id="pay-ov">
   <div class="popup">
@@ -263,7 +265,7 @@
       </svg>
     </div>
     <div class="pp-title">결제가 완료됐어요</div>
-    <div class="pp-sub">구매한 <b id="pp-cnt">0</b>개 상품을<br><b>모아밥 냉장고</b>에 넣을까요?</div>
+    <div class="pp-sub">구매한 <b id="pp-cnt">0</b>개 상품을<br><b>모아밥</b>에 연동할까요?</div>
     <div class="pp-list" id="pp-list"></div>
     <div class="btn-row">
       <button class="btn-later" id="pp-later">나중에</button>
@@ -272,7 +274,7 @@
           <rect x="5" y="2.5" width="14" height="19" rx="2.5" stroke="#fff" stroke-width="1.8"/>
           <path d="M5 10h14M9 5.5v2M9 13v3" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        마이 냉장고에 넣기
+        모아밥에 연동하기
       </button>
     </div>
   </div>
@@ -296,7 +298,7 @@
       </div>
     </div>
     <div class="lk-ttl">모아밥으로 전송 중</div>
-    <div class="lk-sub">재고 목록에 자동으로 채워집니다</div>
+    <div class="lk-sub">모아밥 재고 목록에 자동으로 채워집니다</div>
   </div>
 </div>
 
@@ -415,6 +417,30 @@
     document.getElementById('ckcnt').textContent=cnt;
     document.getElementById('cktot').textContent=won(tot);
     document.getElementById('ckbar').className=cnt>0?'ckbar':'ckbar hidden';
+    var cartCnt=document.getElementById('cartcnt');
+    cartCnt.textContent=cnt;
+    cartCnt.className=cnt>0?'cartcnt':'cartcnt hidden';
+  }
+
+  /* ── Cart popup ── */
+  function openCart(){
+    var list=document.getElementById('cart-list');
+    var total=0,cnt=0,h='';
+    for(var i=0;i<cart.length;i++){
+      var it=cart[i];
+      total+=it.qty*it.price;cnt+=it.qty;
+      h+='<div class="cart-row">'
+        +'<div class="cart-emo">'+it.emoji+'</div>'
+        +'<div class="cart-info">'
+        +'<div class="cart-name">'+it.name+'</div>'
+        +'<div class="cart-price">'+won(it.price)+' × '+it.qty+'</div>'
+        +'</div>'
+        +'<div class="cart-qty">'+it.qty+'개</div>'
+        +'</div>';
+    }
+    list.innerHTML=h||'<div class="cart-empty">장바구니가 비어 있어요</div>';
+    document.getElementById('cart-total').textContent=won(total);
+    document.getElementById('cart-ov').className='overlay';
   }
 
   /* ── Payment flow ── */
@@ -472,7 +498,7 @@
       setTimeout(function(){
         document.getElementById('link-ov').className='overlay hidden';
         btn.disabled=false;stage='browse';order=[];
-        showToast(order.length?'재고에 연동됐어요':'냉장고에 추가됐어요 🧊');
+        showToast('모아밥에 연동됐어요');
       }, db?200:1400);
     }
     writeNext(0);
@@ -511,6 +537,15 @@
 
   /* ── Checkout / Payment ── */
   document.getElementById('ckbtn').onclick=pay;
+  document.getElementById('cartbtn').onclick=openCart;
+  document.getElementById('cart-close').onclick=function(){
+    document.getElementById('cart-ov').className='overlay hidden';
+  };
+  document.getElementById('cart-pay').onclick=function(){
+    if(!cart.length){showToast('장바구니가 비어 있어요');return;}
+    document.getElementById('cart-ov').className='overlay hidden';
+    pay();
+  };
   document.getElementById('pp-later').onclick=ppLater;
   document.getElementById('pp-confirm').onclick=sendToFridge;
 
@@ -520,3 +555,5 @@
 </script>
 </body>
 </html>
+
+```
