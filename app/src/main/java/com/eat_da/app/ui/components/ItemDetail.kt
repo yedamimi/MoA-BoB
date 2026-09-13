@@ -18,6 +18,9 @@ import com.eatda.app.data.model.*
 import com.eatda.app.ui.theme.*
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,8 +29,12 @@ fun ItemDetailSheet(
     item: FoodItem,
     sheetState: SheetState,
     onDismiss: () -> Unit,
+    onUpdateExpiry: (String) -> Unit = {},   // "yyyy-MM-dd" 형식
+    onUpdateQty: (String) -> Unit = {},      // "3개", "2봉지" 등
 ) {
     var showStorageGuide by remember { mutableStateOf(false) }
+    var showDatePicker   by remember { mutableStateOf(false) }
+    var showQtyDialog    by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -58,7 +65,7 @@ fun ItemDetailSheet(
                 else -> colors.text
             }
 
-            // Header
+            // ── 헤더 ──────────────────────────────────────────────────────────
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -90,11 +97,34 @@ fun ItemDetailSheet(
                             }
                         }
                     }
-                    Text("${cat.label} · ${item.qty}", fontSize = 12.sp, color = colors.textMuted, modifier = Modifier.padding(top = 2.dp))
+                    // 카테고리 · 개수 + 개수 수정 버튼
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 2.dp),
+                    ) {
+                        Text("${cat.label} · ${item.qty}", fontSize = 12.sp, color = colors.textMuted)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.surfaceAlt)
+                                .border(1.dp, colors.border, RoundedCornerShape(6.dp))
+                                .clickable { showQtyDialog = true }
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            ) {
+                                Text("✏️", fontSize = 10.sp)
+                                Text("수정", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = colors.textMuted)
+                            }
+                        }
+                    }
                 }
             }
 
-            // Expiry card
+            // ── 유통기한 카드 ─────────────────────────────────────────────────
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -104,23 +134,59 @@ fun ItemDetailSheet(
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                // 헤더 행 — 아이콘 + "유통기한" + 수정 버튼
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(bottom = 4.dp),
                 ) {
                     EatdaIcon(EatdaIcons.Clock, tint = colors.textMuted, size = 14.dp)
-                    Text("유통기한", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.textMuted)
+                    Text(
+                        "유통기한",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textMuted,
+                        modifier = Modifier.weight(1f),
+                    )
+                    // 수정 버튼
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceAlt)
+                            .border(1.dp, colors.border, RoundedCornerShape(8.dp))
+                            .clickable { showDatePicker = true }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text("✏️", fontSize = 11.sp)
+                            Text(
+                                "수정",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textMuted,
+                            )
+                        }
+                    }
                 }
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                // 날짜 표시
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
                     Text(item.formatExpiry(), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = expiryColor)
                     Text(item.expiry.toString(), fontSize = 12.sp, color = colors.textMuted)
                 }
+
                 Text(
                     when {
                         dl <= 0 -> "식약처 DB 기준 권장 소비기한 경과"
                         dl <= 1 -> "D-1 자동 알림 발송됨"
-                        else -> "구매 후 ${item.addedDays}일 경과"
+                        else    -> "구매 후 ${item.addedDays}일 경과"
                     },
                     fontSize = 11.sp,
                     color = colors.textFaint,
@@ -128,7 +194,7 @@ fun ItemDetailSheet(
                 )
             }
 
-            // Freshness card
+            // ── 신선도 카드 ───────────────────────────────────────────────────
             if (item.freshness != null) {
                 Column(
                     modifier = Modifier
@@ -201,15 +267,13 @@ fun ItemDetailSheet(
                 }
             }
 
-            // Storage guide
+            // ── 보관 가이드 ───────────────────────────────────────────────────
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(colors.accentSoft)
-                    .clickable {
-                        showStorageGuide = true
-                    }
+                    .clickable { showStorageGuide = true }
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -222,27 +286,11 @@ fun ItemDetailSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        EatdaIcon(
-                            EatdaIcons.Sparkle,
-                            tint = colors.accentDeep,
-                            size = 14.dp
-                        )
-
-                        Text(
-                            "맞춤 보관 가이드",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.accentDeep
-                        )
+                        EatdaIcon(EatdaIcons.Sparkle, tint = colors.accentDeep, size = 14.dp)
+                        Text("맞춤 보관 가이드", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.accentDeep)
                     }
-
-                    Text(
-                        "›",
-                        fontSize = 20.sp,
-                        color = colors.accentDeep
-                    )
+                    Text("›", fontSize = 20.sp, color = colors.accentDeep)
                 }
-
                 Text(
                     text = storageGuideSummary(item.name),
                     fontSize = 13.sp,
@@ -252,124 +300,7 @@ fun ItemDetailSheet(
                 )
             }
 
-            // Storage guide popup
-            // Dialog 자체를 전체 화면 크기로 사용하고, 내부 Box에서 중앙 정렬합니다.
-            if (showStorageGuide) {
-                Dialog(
-                    onDismissRequest = {
-                        showStorageGuide = false
-                    },
-                    properties = DialogProperties(
-                        usePlatformDefaultWidth = false,
-                    ),
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .width(320.dp)
-                                .heightIn(min = 300.dp, max = 420.dp)
-                                .border(
-                                    width = 1.dp,
-                                    color = colors.border,
-                                    shape = RoundedCornerShape(20.dp),
-                                ),
-                            shape = RoundedCornerShape(20.dp),
-                            color = colors.bg,
-                            shadowElevation = 12.dp,
-                            tonalElevation = 6.dp,
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(20.dp),
-                            ) {
-                                // 팝업 헤더
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(colors.accentSoft),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        EatdaIcon(
-                                            EatdaIcons.Sparkle,
-                                            tint = colors.accentDeep,
-                                            size = 20.dp,
-                                        )
-                                    }
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "맞춤 보관 가이드",
-                                            fontSize = 17.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = colors.text,
-                                        )
-
-                                        Text(
-                                            text = "${foodEmoji[item.name] ?: ""} ${item.name}",
-                                            fontSize = 12.sp,
-                                            color = colors.textMuted,
-                                            modifier = Modifier.padding(top = 2.dp),
-                                        )
-                                    }
-                                }
-
-                                Spacer(Modifier.height(16.dp))
-
-                                HorizontalDivider(color = colors.border)
-
-                                Spacer(Modifier.height(16.dp))
-
-                                // 상세 내용
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .verticalScroll(rememberScrollState()),
-                                ) {
-                                    Text(
-                                        text = storageGuide(item.name),
-                                        fontSize = 14.sp,
-                                        lineHeight = 23.sp,
-                                        color = colors.text,
-                                    )
-                                }
-
-                                Spacer(Modifier.height(16.dp))
-
-                                // 확인 버튼
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(colors.accent)
-                                        .clickable {
-                                            showStorageGuide = false
-                                        }
-                                        .padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = "확인",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Action buttons
+            // ── 하단 버튼 ─────────────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -403,20 +334,272 @@ fun ItemDetailSheet(
             }
         }
     }
-}
-fun storageGuideSummary(name: String): String {
-    return when (name) {
-        "오이" -> "냉장 보관하고, 물기가 닿지 않도록 보관하세요."
-        "바나나" -> "실온에서 보관하고, 꼭지를 감싸면 숙성을 늦출 수 있어요."
-        "yangpa" -> "통풍이 잘 되는 서늘하고 건조한 곳에 보관하세요."
-        "당근" -> "냉장 보관하고, 신문지나 키친타월로 감싸주세요."
-        "무" -> "잎을 제거한 뒤 냉장 보관하면 더 오래 보관할 수 있어요."
-        "대파" -> "물기를 제거하고 밀폐 용기에 넣어 냉장 보관하세요."
-        "파프리카" -> "물기를 제거한 뒤 냉장 보관하세요."
-        "방울토마토" -> "완숙 전에는 실온, 완숙 후에는 냉장 보관하세요."
-        "브로콜리" -> "냉장 보관하고, 되도록 빠르게 섭취하세요."
-        "애호박" -> "신문지나 키친타월로 감싸 냉장 보관하세요."
-        "사과" -> "냉장 보관하면 신선도를 오래 유지할 수 있어요."
-        else -> "신선도를 유지할 수 있도록 적절한 환경에서 보관하세요."
+
+    // ── 보관 가이드 다이얼로그 ────────────────────────────────────────────────
+    if (showStorageGuide) {
+        Dialog(
+            onDismissRequest = { showStorageGuide = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Surface(
+                    modifier = Modifier
+                        .width(320.dp)
+                        .heightIn(min = 300.dp, max = 420.dp)
+                        .border(1.dp, colors.border, RoundedCornerShape(20.dp)),
+                    shape = RoundedCornerShape(20.dp),
+                    color = colors.bg,
+                    shadowElevation = 12.dp,
+                    tonalElevation = 6.dp,
+                ) {
+                    Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.accentSoft),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                EatdaIcon(EatdaIcons.Sparkle, tint = colors.accentDeep, size = 20.dp)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("맞춤 보관 가이드", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
+                                Text("${foodEmoji[item.name] ?: ""} ${item.name}", fontSize = 12.sp, color = colors.textMuted, modifier = Modifier.padding(top = 2.dp))
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        HorizontalDivider(color = colors.border)
+                        Spacer(Modifier.height(16.dp))
+                        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                            Text(storageGuide(item.name), fontSize = 14.sp, lineHeight = 23.sp, color = colors.text)
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(colors.accent)
+                                .clickable { showStorageGuide = false }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("확인", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    // ── 유통기한 수정 DatePickerDialog ────────────────────────────────────────
+    if (showDatePicker) {
+        val initialMillis = item.expiry
+            ?.atStartOfDay(ZoneId.of("Asia/Seoul"))
+            ?.toInstant()
+            ?.toEpochMilli()
+
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = initialMillis,
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val newDate = Instant.ofEpochMilli(millis)
+                                .atZone(ZoneId.of("Asia/Seoul"))
+                                .toLocalDate()
+                            onUpdateExpiry(newDate.toString())  // "yyyy-MM-dd"
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("확인", color = colors.accent, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("취소", color = colors.textMuted)
+                }
+            },
+            colors = DatePickerDefaults.colors(
+                containerColor = colors.surface,
+                titleContentColor = colors.text,
+                headlineContentColor = colors.text,
+                weekdayContentColor = colors.textMuted,
+                subheadContentColor = colors.textMuted,
+                navigationContentColor = colors.text,
+                yearContentColor = colors.text,
+                currentYearContentColor = colors.accent,
+                selectedYearContentColor = Color.White,
+                selectedYearContainerColor = colors.accent,
+                dayContentColor = colors.text,
+                selectedDayContentColor = Color.White,
+                selectedDayContainerColor = colors.accent,
+                todayContentColor = colors.accent,
+                todayDateBorderColor = colors.accent,
+            ),
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // ── 개수 수정 스테퍼 다이얼로그 ───────────────────────────────────────────
+    if (showQtyDialog) {
+        // "3개", "2봉지" → 숫자 파트 + 단위 파트 분리
+        val qtyNum  = remember(item.qty) { item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1 }
+        val qtyUnit = remember(item.qty) { item.qty.filterNot { it.isDigit() }.trim().ifEmpty { "개" } }
+        var count by remember { mutableIntStateOf(qtyNum) }
+
+        Dialog(
+            onDismissRequest = { showQtyDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Surface(
+                    modifier = Modifier
+                        .width(280.dp)
+                        .border(1.dp, colors.border, RoundedCornerShape(20.dp)),
+                    shape = RoundedCornerShape(20.dp),
+                    color = colors.bg,
+                    shadowElevation = 12.dp,
+                    tonalElevation = 6.dp,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                    ) {
+                        // 제목
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("개수 수정", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
+                            Text(
+                                "${foodEmoji[item.name] ?: ""} ${item.name}",
+                                fontSize = 12.sp,
+                                color = colors.textMuted,
+                            )
+                        }
+
+                        // 스테퍼
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // − 버튼
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(colors.surface)
+                                    .border(
+                                        1.dp,
+                                        if (count > 1) colors.border else colors.border.copy(alpha = 0.4f),
+                                        RoundedCornerShape(14.dp),
+                                    )
+                                    .clickable(enabled = count > 1) { count-- },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "−",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (count > 1) colors.text else colors.textFaint,
+                                )
+                            }
+
+                            // 숫자 + 단위
+                            Column(
+                                modifier = Modifier.width(108.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    "$count",
+                                    fontSize = 42.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = colors.text,
+                                )
+                                Text(
+                                    qtyUnit,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.textMuted,
+                                )
+                            }
+
+                            // + 버튼
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(colors.surface)
+                                    .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+                                    .clickable { count++ },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                            }
+                        }
+
+                        // 취소 / 확인 버튼
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.surface)
+                                    .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                                    .clickable { showQtyDialog = false }
+                                    .padding(vertical = 13.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("취소", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.accent)
+                                    .clickable {
+                                        onUpdateQty("$count$qtyUnit")
+                                        showQtyDialog = false
+                                    }
+                                    .padding(vertical = 13.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("확인", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun storageGuideSummary(name: String): String = when (name) {
+    "오이"       -> "냉장 보관하고, 물기가 닿지 않도록 보관하세요."
+    "바나나"     -> "실온에서 보관하고, 꼭지를 감싸면 숙성을 늦출 수 있어요."
+    "당근"       -> "냉장 보관하고, 신문지나 키친타월로 감싸주세요."
+    "무"         -> "잎을 제거한 뒤 냉장 보관하면 더 오래 보관할 수 있어요."
+    "대파"       -> "물기를 제거하고 밀폐 용기에 넣어 냉장 보관하세요."
+    "파프리카"   -> "물기를 제거한 뒤 냉장 보관하세요."
+    "방울토마토" -> "완숙 전에는 실온, 완숙 후에는 냉장 보관하세요."
+    "브로콜리"   -> "냉장 보관하고, 되도록 빠르게 섭취하세요."
+    "애호박"     -> "신문지나 키친타월로 감싸 냉장 보관하세요."
+    "사과"       -> "냉장 보관하면 신선도를 오래 유지할 수 있어요."
+    "샌드위치"       -> "냉장 보관하면 신선도를 오래 유지할 수 있어요."
+    "케이크"       -> "냉장 보관하면 신선도를 오래 유지할 수 있어요."
+    "도넛"       -> "냉장 보관하면 신선도를 오래 유지할 수 있어요."
+    "피자"       -> "냉장 보관하거나 소분한 뒤 냉동 보관하면 신선도를 오래 유지할 수 있어요."
+    else         -> "신선도를 유지할 수 있도록 적절한 환경에서 보관하세요."
 }
