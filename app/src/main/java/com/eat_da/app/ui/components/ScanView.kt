@@ -16,19 +16,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eatda.app.data.foodEmoji
 import com.eatda.app.data.model.*
 import com.eatda.app.ui.theme.*
+import com.eatda.app.util.HapticManager
 import com.eatda.app.util.VisionService
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-//import android.webkit.WebView
-//import android.webkit.WebViewClient
-//import androidx.compose.ui.viewinterop.AndroidView
 
 @Composable
 fun ScanView(
@@ -40,8 +39,9 @@ fun ScanView(
     onClose: () -> Unit,
     onConfirm: (List<ScanResult>) -> Unit,
 ) {
-    val isIn      = mode == ScanMode.IN
-    val isFresh   = mode == ScanMode.FRESH
+    val context    = LocalContext.current
+    val isIn       = mode == ScanMode.IN
+    val isFresh    = mode == ScanMode.FRESH
     val isAllergen = mode == ScanMode.ALLERGEN
 
     val accent = when {
@@ -72,20 +72,23 @@ fun ScanView(
         ScanMode.FRESH                 -> "OpenCV · 웹캠 부패도 분석"
     }
 
-    // 알레르기 경고 트리거
+    // ── 알레르기 감지 → HapticManager 진동 ───────────────────────────────────
     var allergyAlert by remember { mutableStateOf<ScanResult?>(null) }
     LaunchedEffect(scanResults) {
         val found = scanResults.firstOrNull { r ->
             r.isAllergen && allergens.any { a -> a.name == r.name }
         }
-        if (found != null && allergyAlert == null) allergyAlert = found
+        if (found != null && allergyAlert == null) {
+            allergyAlert = found
+            HapticManager.allergenAlert(context)
+        }
     }
 
-    // 유통기한 OCR
-    val scope = rememberCoroutineScope()
-    var ocrTargetId by remember { mutableStateOf<String?>(null) }
+    // ── 유통기한 OCR ─────────────────────────────────────────────────────────
+    val scope        = rememberCoroutineScope()
+    var ocrTargetId  by remember { mutableStateOf<String?>(null) }
     var ocrLoadingId by remember { mutableStateOf<String?>(null) }
-    var ocrResults by remember { mutableStateOf<Map<String, LocalDate>>(emptyMap()) }
+    var ocrResults   by remember { mutableStateOf<Map<String, LocalDate>>(emptyMap()) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicturePreview()
@@ -107,11 +110,6 @@ fun ScanView(
         initialValue = 1f, targetValue = 0.5f,
         animationSpec = infiniteRepeatable(tween(600, easing = LinearEasing), RepeatMode.Reverse),
         label = "pulseDot",
-    )
-    val waveScale by rememberInfiniteTransition(label = "wave").animateFloat(
-        initialValue = 1f, targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
-        label = "waveScale",
     )
 
     Column(
@@ -151,57 +149,34 @@ fun ScanView(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
+            // ── 웹캠 뷰 영역 ─────────────────────────────────────────────────
             item {
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(4f / 3f)
                         .clip(RoundedCornerShape(16.dp))
                         .background(colors.surface)
-                        .border(
-                            1.dp,
-                            colors.border,
-                            RoundedCornerShape(16.dp)
-                        ),
+                        .border(1.dp, colors.border, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-
                         Box(
                             modifier = Modifier
                                 .size(14.dp)
                                 .clip(CircleShape)
                                 .background(accent)
-                                .graphicsLayer {
-                                    alpha = pulseDot
-                                }
+                                .graphicsLayer { alpha = pulseDot }
                         )
-
-                        Text(
-                            "웹캠 인식 중",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.text
-                        )
-
-                        Text(
-                            "YOLO AI 분석 중...",
-                            fontSize = 12.sp,
-                            color = colors.textMuted
-                        )
+                        Text("웹캠 인식 중", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                        Text("YOLO AI 분석 중...", fontSize = 12.sp, color = colors.textMuted)
                     }
                 }
-
                 Spacer(Modifier.height(14.dp))
             }
-
-
-
 
             // ── 스캔 중 상태 표시 ────────────────────────────────────────────
             if (scanPhase == "scanning") {
@@ -250,7 +225,7 @@ fun ScanView(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // 결과 없을 때 플레이스홀더
+            // ── 결과 없을 때 플레이스홀더 ────────────────────────────────────
             if (scanResults.isEmpty()) {
                 item {
                     Box(
@@ -290,7 +265,7 @@ fun ScanView(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // ── 확정 버튼 (결과 있을 때) ─────────────────────────────────────
+            // ── 확정 버튼 ────────────────────────────────────────────────────
             if (scanPhase == "detected" && scanResults.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(8.dp))
@@ -354,7 +329,7 @@ fun ScanView(
         }
     }
 
-    // 알레르기 경고 다이얼로그
+    // ── 알레르기 경고 다이얼로그 ─────────────────────────────────────────────
     allergyAlert?.let { item ->
         AllergyAlert(colors = colors, item = item, onDismiss = { allergyAlert = null })
     }
@@ -384,26 +359,25 @@ private fun ExpiryOcrRow(
             EatdaIcon(EatdaIcons.Clock, tint = colors.textMuted, size = 13.dp)
             Text(
                 when {
-                    isLoading        -> "OCR 분석 중..."
+                    isLoading             -> "OCR 분석 중..."
                     extractedDate != null -> extractedDate.format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))
-                    else             -> "유통기한 미등록"
+                    else                  -> "유통기한 미등록"
                 },
                 fontSize = 12.sp,
                 fontWeight = if (extractedDate != null && !isLoading) FontWeight.SemiBold else FontWeight.Normal,
                 color = when {
-                    isLoading        -> colors.textMuted
+                    isLoading             -> colors.textMuted
                     extractedDate != null -> colors.text
-                    else             -> colors.textFaint
+                    else                  -> colors.textFaint
                 },
             )
         }
 
-        val btnEnabled = !isLoading
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (btnEnabled) colors.accentSoft else colors.surfaceAlt)
-                .then(if (btnEnabled) Modifier.clickable(onClick = onPhotoTap) else Modifier)
+                .background(if (!isLoading) colors.accentSoft else colors.surfaceAlt)
+                .then(if (!isLoading) Modifier.clickable(onClick = onPhotoTap) else Modifier)
                 .padding(horizontal = 10.dp, vertical = 5.dp),
         ) {
             Row(
@@ -412,18 +386,18 @@ private fun ExpiryOcrRow(
             ) {
                 EatdaIcon(
                     EatdaIcons.Camera,
-                    tint = if (btnEnabled) colors.accent else colors.textFaint,
+                    tint = if (!isLoading) colors.accent else colors.textFaint,
                     size = 12.dp,
                 )
                 Text(
                     when {
-                        isLoading        -> "분석 중"
+                        isLoading             -> "분석 중"
                         extractedDate != null -> "다시 촬영"
-                        else             -> "유통기한 촬영"
+                        else                  -> "유통기한 촬영"
                     },
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (btnEnabled) colors.accent else colors.textFaint,
+                    color = if (!isLoading) colors.accent else colors.textFaint,
                 )
             }
         }
@@ -439,8 +413,8 @@ private fun ScanResultRow(
     allergens: List<Allergen>,
 ) {
     val isAllergic = result.isAllergen && allergens.any { it.name == result.name }
-    val cat = result.category
-    val label = if (result.qty.isNotBlank()) "${result.name} ${result.qty}" else result.name
+    val cat        = result.category
+    val label      = if (result.qty.isNotBlank()) "${result.name} ${result.qty}" else result.name
 
     Row(
         modifier = Modifier
@@ -448,7 +422,7 @@ private fun ScanResultRow(
             .clip(RoundedCornerShape(12.dp))
             .background(colors.surface)
             .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-            .padding(12.dp, 12.dp),
+            .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
