@@ -29,6 +29,7 @@ fun MyPageScreen(
     allergens: List<Allergen>,
     onRemoveAllergen: (String) -> Unit,
     onScanAllergen: () -> Unit,
+    onGoHousehold: () -> Unit = {},
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.bg),
@@ -53,6 +54,35 @@ fun MyPageScreen(
                 Box(modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(999.dp)).padding(horizontal = 12.dp, vertical = 6.dp).clickable { }) {
                     Text("편집", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.text)
                 }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // ── 공동 냉장고 배너 ─────────────────────────────────────────────────
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.accentSoft)
+                    .border(1.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                    .clickable(onClick = onGoHousehold)
+                    .padding(14.dp),
+                verticalAlignment    = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(colors.accent),
+                    contentAlignment = Alignment.Center,
+                ) { Text("🏠", fontSize = 20.sp) }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("공동 냉장고", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = colors.accentDeep)
+                    Text("가족·동거인과 재고 함께 관리", fontSize = 11.sp, color = colors.accent.copy(alpha = 0.7f), modifier = Modifier.padding(top = 2.dp))
+                }
+                EatdaIcon(EatdaIcons.ChevronRight, tint = colors.accent, size = 18.dp)
             }
             Spacer(Modifier.height(14.dp))
         }
