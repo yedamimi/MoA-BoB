@@ -15,8 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eatda.app.data.model.ScanMode
@@ -28,12 +28,8 @@ fun ScanBottomSheet(
     colors: EatdaColors,
     sheetState: SheetState,
     onPick: (ScanMode) -> Unit,
-    onPhonePick: (ScanMode) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var useCamera by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -63,48 +59,8 @@ fun ScanBottomSheet(
                 color = colors.textMuted,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                textAlign = TextAlign.Center,
             )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(colors.surfaceAlt)
-                    .padding(3.dp),
-            ) {
-                listOf(false to ("📷" to "냉장고 카메라"), true to ("📱" to "스마트폰 카메라")).forEach { (isCamera, pair) ->
-                    val (emoji, label) = pair
-                    val selected = useCamera == isCamera
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (selected) colors.surface else Color.Transparent)
-                            .border(
-                                if (selected) 1.dp else 0.dp,
-                                if (selected) colors.border else Color.Transparent,
-                                RoundedCornerShape(10.dp),
-                            )
-                            .clickable { useCamera = isCamera }
-                            .padding(vertical = 9.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        ) {
-                            Text(emoji, fontSize = 13.sp)
-                            Text(
-                                label,
-                                fontSize = 12.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (selected) colors.text else colors.textMuted,
-                            )
-                        }
-                    }
-                }
-            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -120,13 +76,7 @@ fun ScanBottomSheet(
                     sub = "냉장고에 넣기",
                     titleColor = colors.accentDeep,
                     subColor = colors.textMuted,
-                    onClick = {
-                        if (useCamera) {
-                            onPhonePick(ScanMode.IN)
-                        } else {
-                            onPick(ScanMode.IN)
-                        }
-                    },
+                    onClick = { onPick(ScanMode.IN) },
                 )
                 ScanOption(
                     modifier = Modifier.weight(1f),
@@ -138,13 +88,7 @@ fun ScanBottomSheet(
                     sub = "냉장고에서 꺼내기",
                     titleColor = Color(0xFF9B5021),
                     subColor = colors.textMuted,
-                    onClick = {
-                        if (useCamera) {
-                            onPhonePick(ScanMode.OUT)
-                        } else {
-                            onPick(ScanMode.OUT)
-                        }
-                    },
+                    onClick = { onPick(ScanMode.OUT) },
                 )
                 ScanOption(
                     modifier = Modifier.weight(1f),
@@ -156,7 +100,7 @@ fun ScanBottomSheet(
                     sub = "부패 확인",
                     titleColor = Color(0xFF3B3287),
                     subColor = colors.textMuted,
-                    onClick = { if (useCamera) onPhonePick(ScanMode.FRESH) else onPick(ScanMode.FRESH) },
+                    onClick = { onPick(ScanMode.FRESH) },
                 )
             }
 
@@ -204,3 +148,4 @@ private fun ScanOption(
         Text(sub, fontSize = 10.sp, color = subColor, fontWeight = FontWeight.Medium)
     }
 }
+ 
