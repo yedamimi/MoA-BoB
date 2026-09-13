@@ -93,13 +93,7 @@ fun CameraScanView(
                 ) {
                     EatdaIcon(EatdaIcons.Close, tint = colors.text, size = 16.dp)
                 }
-                Column {
-                    Text(modeLabel, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        EatdaIcon(EatdaIcons.Camera, tint = colors.textMuted, size = 11.dp)
-                        Text("스마트폰 카메라 스캔", fontSize = 11.sp, color = colors.textMuted)
-                    }
-                }
+                Text(modeLabel, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
             }
 
             Box(
