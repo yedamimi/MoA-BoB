@@ -253,16 +253,28 @@ private fun AppScreenContent(
                     }
                 }
                 Screen.MYPAGE -> MyPageScreen(
-                    colors = colors, sizes = sizes,
-                    allergens = state.allergens,
+                    colors           = colors,
+                    sizes            = sizes,
+                    allergens        = state.allergens,
                     onRemoveAllergen = vm::removeAllergen,
-                    onScanAllergen = { vm.startScan(ScanMode.ALLERGEN) },
+                    onScanAllergen   = { vm.startScan(ScanMode.ALLERGEN) },
+                    onGoHousehold    = { vm.navigate(Screen.HOUSEHOLD) },
                 )
                 Screen.SETTINGS -> SettingsScreen(
                     colors = colors, sizes = sizes,
                     settings = state.settings,
                     onUpdateSettings = vm::updateSettings,
                     onGoMyPage = { vm.navigate(Screen.MYPAGE) },
+                )
+                Screen.HOUSEHOLD -> HouseholdScreen(
+                    colors            = colors,
+                    household         = state.household,
+                    members           = state.householdMembers,
+                    myUserId          = state.myUserId,
+                    onCreateHousehold = vm::createHousehold,
+                    onJoinHousehold   = vm::joinHousehold,
+                    onLeaveHousehold  = vm::leaveHousehold,
+                    onBack            = { vm.navigate(Screen.MYPAGE) },
                 )
             }
         }
