@@ -1,0 +1,559 @@
+```
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+  <title>싱싱마켓</title>
+  <style>
+    /* ── Design Tokens (README 기준) ── */
+    :root {
+      --bg:          #F7F9FA;
+      --surface:     #FFFFFF;
+      --surfaceAlt:  #F0F3F5;
+      --border:      #E2E7EB;
+      --borderStr:   #C6CED4;
+      --ink:         #16212B;
+      --inkMuted:    #5E6C78;
+      --inkFaint:    #93A0AA;
+      --brand:       #2F6DB5;
+      --brandSoft:   #E4EDF7;
+      --brandDeep:   #1E4E85;
+      --itda:        #3F8B4F;
+      --itdaSoft:    #E2F0DE;
+      --itdaDeep:    #2D6B3A;
+      --price:       #D8453C;
+      --overlay:     rgba(22,33,43,0.55);
+    }
+
+    /* ── Reset ── */
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{width:100%;height:100%;font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;background:var(--bg);color:var(--ink)}
+    button{font-family:inherit;border:none;background:none;cursor:pointer;color:inherit}
+
+    /* ── Layout — position:fixed (WebView height 버그 완전 우회) ── */
+    #app{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+
+
+    /* ── Header (제거됨) ── */
+
+    /* ── Search ── */
+    .sw{padding:16px 16px 10px;flex-shrink:0}
+    .sw-row{display:flex;align-items:center;gap:8px}.sr{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:12px;padding:10px 12px;border:1px solid var(--border)}
+    .si{flex:1;border:none;outline:none;background:transparent;font-size:13.5px;color:var(--ink);font-family:inherit}
+    .si::placeholder{color:var(--inkFaint)}
+    .sclr{width:18px;height:18px;border-radius:50%;background:var(--surfaceAlt);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--inkMuted);flex-shrink:0}
+    .cartbtn{width:44px;height:44px;border-radius:12px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
+    .cartbtn:active{opacity:.75}
+    .cartcnt{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--price);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+    .cartcnt.hidden{display:none}
+
+    /* ── Category chips ── */
+    .cw{display:flex;gap:6px;padding:0 16px 10px;overflow-x:auto;flex-shrink:0}
+    .cw::-webkit-scrollbar{display:none}
+    .chip{padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;border:1px solid var(--border);background:var(--surface);color:var(--ink);transition:all .13s}
+    .chip.on{border:1.5px solid var(--brand);background:var(--brand);color:#fff}
+    .chip:active{opacity:.75}
+
+    /* ── Scroll ── */
+    .scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0 16px 16px}
+    .scroll::-webkit-scrollbar{display:none}
+
+    /* ── Product grid ── */
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start}
+
+    /* ── Card ── */
+    .card{background:var(--surface);border-radius:14px;border:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column}
+    .card:active{opacity:.92}
+
+    /* thumbnail */
+    .thumb{height:84px;flex-shrink:0;background:var(--surfaceAlt);position:relative;display:flex;align-items:center;justify-content:center;font-size:36px}
+    .tag{position:absolute;top:8px;left:8px;padding:3px 7px;border-radius:999px;background:var(--brand);color:#fff;font-size:9px;font-weight:800}
+
+    /* card body */
+    .cbody{padding:10px 12px 12px;display:flex;flex-direction:column;gap:3px;flex:1}
+    .cseller{font-size:10px;color:var(--inkFaint);font-weight:600}
+    .cname{font-size:13px;font-weight:700;line-height:1.3;color:var(--ink)}
+    .cmeta{font-size:10px;color:var(--inkMuted)}
+    .cprice{display:flex;align-items:baseline;gap:5px;margin-top:3px}
+    .price-sale{font-size:14.5px;font-weight:800;color:var(--price);white-space:nowrap;font-variant-numeric:tabular-nums}
+    .price-base{font-size:14.5px;font-weight:800;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+    .price-orig{font-size:10.5px;color:var(--inkFaint);text-decoration:line-through;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .addbtn{margin-top:7px;flex-shrink:0;padding:8px;border-radius:10px;background:var(--brand);color:#fff;font-size:12px;font-weight:700;width:100%}
+    .addbtn:active{opacity:.8}
+    .stepper{margin-top:7px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--brand);border-radius:10px;padding:2px}
+    .s-btn{width:30px;height:26px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--brand)}
+    .s-btn:active{opacity:.6}
+    .s-num{font-size:13px;font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums}
+
+    /* ── Checkout bar ── */
+    .ckbar{
+      flex-shrink:0;padding:10px 16px 12px;
+      background:var(--surface);border-top:1px solid var(--border);
+      animation:sm-up .2s both;
+    }
+    .ckbar.hidden{display:none}
+    .ckbtn{
+      width:100%;padding:14px;border-radius:12px;
+      background:var(--brand);color:#fff;
+      font-size:14px;font-weight:800;
+      display:flex;align-items:center;justify-content:center;gap:8px;
+    }
+    .ckbtn:active{opacity:.85}
+    .ckpill{background:rgba(255,255,255,.25);border-radius:999px;padding:1px 8px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+
+    /* ── Gesture bar ── */
+    .gbar{height:18px;display:flex;align-items:center;justify-content:center;background:var(--surface);flex-shrink:0}
+    .gbar-line{width:110px;height:4px;border-radius:2px;background:var(--borderStr);opacity:.6}
+
+    /* ── Overlay ── */
+    .overlay{position:fixed;inset:0;z-index:60;background:var(--overlay);display:flex;align-items:center;justify-content:center;padding:22px;animation:sm-pop .2s}
+    .overlay.hidden{display:none}
+
+    /* ── Cart popup ── */
+    .cart-popup{width:100%;max-width:330px;background:var(--surface);border-radius:20px;padding:22px 18px 18px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:84%;display:flex;flex-direction:column}
+    .cart-title{font-size:17px;font-weight:800;color:var(--ink);margin-bottom:4px}
+    .cart-sub{font-size:12px;color:var(--inkMuted);margin-bottom:14px}
+    .cart-list{overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+    .cart-list::-webkit-scrollbar{display:none}
+    .cart-row{display:flex;align-items:center;gap:9px;padding:9px 10px;background:var(--surfaceAlt);border-radius:10px}
+    .cart-emo{width:34px;height:34px;border-radius:9px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+    .cart-info{flex:1;min-width:0}
+    .cart-name{font-size:12.5px;font-weight:700;color:var(--ink)}
+    .cart-price{font-size:10.5px;color:var(--inkMuted);margin-top:2px}
+    .cart-qty{font-size:12px;font-weight:800;color:var(--brand)}
+    .cart-total{display:flex;justify-content:space-between;align-items:center;padding:11px 2px 12px;border-top:1px solid var(--border);font-size:13px;font-weight:700}
+    .cart-total strong{font-size:15px;color:var(--price)}
+    .cart-close{flex:1;padding:13px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--inkMuted);font-size:13px;font-weight:700}
+    .cart-pay{flex:2;padding:13px;border-radius:12px;background:var(--brand);color:#fff;font-size:13px;font-weight:800}
+    .cart-empty{text-align:center;padding:25px 10px;color:var(--inkFaint);font-size:12px}
+
+    /* ── Payment popup ── */
+    .popup{width:100%;max-width:330px;background:var(--surface);border-radius:20px;padding:22px 18px 18px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:84%;display:flex;flex-direction:column}
+    .pp-icon{width:54px;height:54px;margin:0 auto 12px;border-radius:999px;background:var(--brandSoft);display:flex;align-items:center;justify-content:center}
+    .pp-title{text-align:center;font-size:17px;font-weight:800;color:var(--ink)}
+    .pp-sub{text-align:center;font-size:12.5px;color:var(--inkMuted);margin:4px 0 14px;line-height:1.5}
+    .pp-sub b{color:var(--itdaDeep)}
+    .pp-list{overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+    .pp-list::-webkit-scrollbar{display:none}
+    .pp-row{display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--surfaceAlt);border-radius:10px}
+    .pp-emo{width:30px;height:30px;border-radius:8px;font-size:17px;background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .pp-rname{font-size:12.5px;font-weight:700;color:var(--ink)}
+    .pp-rmeta{font-size:10px;color:var(--inkFaint)}
+    .btn-row{display:flex;gap:8px}
+    .btn-later{flex:1;padding:13px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--inkMuted);font-size:13px;font-weight:700}
+    .btn-later:active{opacity:.7}
+    .btn-fridge{flex:2;padding:13px;border-radius:12px;background:var(--itda);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px}
+    .btn-fridge:active{opacity:.8}
+    .btn-fridge:disabled{opacity:.5;pointer-events:none}
+
+    /* ── Linked overlay ── */
+    .linked-card{width:100%;max-width:300px;background:var(--surface);border-radius:20px;padding:26px 20px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+    .lk-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px}
+    .lk-box{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px}
+    .lk-dots{display:flex;gap:4px}
+    .lk-dot{width:5px;height:5px;border-radius:999px;background:var(--itda)}
+    .lk-dot:nth-child(1){animation:sm-pulse .9s infinite 0s}
+    .lk-dot:nth-child(2){animation:sm-pulse .9s infinite .15s}
+    .lk-dot:nth-child(3){animation:sm-pulse .9s infinite .3s}
+    .lk-ttl{font-size:15.5px;font-weight:800;color:var(--ink)}
+    .lk-sub{font-size:12px;color:var(--inkMuted);margin-top:5px;line-height:1.5}
+
+    /* ── Toast ── */
+    .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;font-size:12.5px;font-weight:600;z-index:80;white-space:nowrap;animation:sm-up .25s;pointer-events:none}
+    .toast.hidden{display:none}
+
+    /* ── Empty ── */
+    .empty{display:flex;flex-direction:column;align-items:center;padding:56px 24px;gap:10px;grid-column:1/-1}
+    .empty-ico{font-size:40px}
+    .empty-ttl{font-size:14px;font-weight:700;color:var(--ink)}
+    .empty-sub{font-size:12px;color:var(--inkFaint);text-align:center}
+
+    @keyframes sm-pop{0%{opacity:0;transform:scale(.92)}100%{opacity:1;transform:scale(1)}}
+    @keyframes sm-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes sm-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  </style>
+</head>
+<body>
+
+<!-- Firebase 설정 — google-services.json 값으로 교체 -->
+<script>
+  var FB_CONFIG = {
+    apiKey:            "YOUR_API_KEY",
+    authDomain:        "YOUR_PROJECT.firebaseapp.com",
+    databaseURL:       "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+    projectId:         "YOUR_PROJECT",
+    storageBucket:     "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId:             "YOUR_APP_ID"
+  };
+</script>
+
+<div id="app">
+  <!-- Search -->
+  <div class="sw">
+    <div class="sw-row">
+      <div class="sr">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+          <circle cx="11" cy="11" r="6" stroke="#93A0AA" stroke-width="1.8"/>
+          <path d="M16 16l5 5" stroke="#93A0AA" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <input class="si" id="si" type="text" placeholder="오늘 뭐 사지?" autocomplete="off" autocorrect="off">
+        <button class="sclr" id="sclr" style="display:none">✕</button>
+      </div>
+      <button class="cartbtn" id="cartbtn" aria-label="장바구니">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
+          <path d="M3.5 4h2l1.7 10.2a2 2 0 0 0 2 1.7h8.5a2 2 0 0 0 1.9-1.4L21 7H7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="20" r="1.3" fill="currentColor"/>
+          <circle cx="18" cy="20" r="1.3" fill="currentColor"/>
+        </svg>
+        <span class="cartcnt hidden" id="cartcnt">0</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Categories -->
+  <div class="cw" id="cats">
+    <button class="chip on" data-cat="전체">전체</button>
+    <button class="chip" data-cat="채소">채소</button>
+    <button class="chip" data-cat="과일">과일</button>
+    <button class="chip" data-cat="정육">정육</button>
+    <button class="chip" data-cat="수산">수산</button>
+    <button class="chip" data-cat="유제품">유제품</button>
+  </div>
+
+  <!-- Products -->
+  <div class="scroll">
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- Checkout bar -->
+  <div class="ckbar hidden" id="ckbar">
+    <button class="ckbtn" id="ckbtn">
+      <span class="ckpill" id="ckcnt">0</span>
+      <span id="cktot">0원</span> 결제하기
+    </button>
+  </div>
+
+  <!-- Gesture bar -->
+  <div class="gbar"><div class="gbar-line"></div></div>
+</div>
+
+<!-- Cart popup -->
+<div class="overlay hidden" id="cart-ov">
+  <div class="cart-popup">
+    <div class="cart-title">장바구니</div>
+    <div class="cart-sub">담은 상품을 확인해 주세요</div>
+    <div class="cart-list" id="cart-list"></div>
+    <div class="cart-total">
+      <span>총 결제금액</span>
+      <strong id="cart-total">0원</strong>
+    </div>
+    <div class="btn-row">
+      <button class="cart-close" id="cart-close">닫기</button>
+      <button class="cart-pay" id="cart-pay">결제하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment popup -->
+<div class="overlay hidden" id="pay-ov">
+  <div class="popup">
+    <div class="pp-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+        <path d="M5 12l4.5 4.5L19 7" stroke="#2F6DB5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="pp-title">결제가 완료됐어요</div>
+    <div class="pp-sub">구매한 <b id="pp-cnt">0</b>개 상품을<br><b>모아밥</b>에 연동할까요?</div>
+    <div class="pp-list" id="pp-list"></div>
+    <div class="btn-row">
+      <button class="btn-later" id="pp-later">나중에</button>
+      <button class="btn-fridge" id="pp-confirm">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <rect x="5" y="2.5" width="14" height="19" rx="2.5" stroke="#fff" stroke-width="1.8"/>
+          <path d="M5 10h14M9 5.5v2M9 13v3" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        모아밥에 연동하기
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Linked overlay -->
+<div class="overlay hidden" id="link-ov">
+  <div class="linked-card">
+    <div class="lk-row">
+      <div class="lk-box" style="background:#E4EDF7">🛒</div>
+      <div class="lk-dots">
+        <div class="lk-dot"></div>
+        <div class="lk-dot"></div>
+        <div class="lk-dot"></div>
+      </div>
+      <div class="lk-box" style="background:#E2F0DE">
+        <svg width="22" height="22" viewBox="0 0 24 24">
+          <circle cx="9" cy="12" r="4.5" fill="none" stroke="#3F8B4F" stroke-width="2"/>
+          <circle cx="15" cy="12" r="4.5" fill="none" stroke="#3F8B4F" stroke-width="2"/>
+        </svg>
+      </div>
+    </div>
+    <div class="lk-ttl">모아밥으로 전송 중</div>
+    <div class="lk-sub">모아밥 재고 목록에 자동으로 채워집니다</div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast hidden" id="toast"></div>
+
+<script>
+  /* ═══════════════════════════════════════════
+     상품 데이터 (README + shop-app.jsx 기준)
+     ═══════════════════════════════════════════ */
+  var PRODUCTS = [
+    {id:'p1',name:'유기농 브로콜리',short:'브로콜리',emoji:'🥦',category:'vegetable',price:3900,was:4900, unit:'1송이',shelfDays:8,  seller:'초록농장',tag:'산지직송'},
+    {id:'p2',name:'무항생제 계란',  short:'계란',    emoji:'🥚',category:'dairy',     price:7200,          unit:'10구', shelfDays:14, seller:'한들목장',isAllergen:true},
+    {id:'p3',name:'국내산 삼겹살', short:'삼겹살',  emoji:'🥩',category:'meat',      price:12900,was:15900,unit:'500g',shelfDays:4,  seller:'정육하다',tag:'오늘출발'},
+    {id:'p4',name:'노르웨이 연어', short:'연어',    emoji:'🐟',category:'seafood',   price:15800,         unit:'300g',shelfDays:3,  seller:'피시마켓'},
+    {id:'p5',name:'제철 딸기',     short:'딸기',    emoji:'🍓',category:'fruit',     price:9900, was:12900,unit:'1팩', shelfDays:5,  seller:'설향농원',tag:'한정수량'},
+    {id:'p6',name:'유기농 대파',   short:'대파',    emoji:'🌿',category:'vegetable', price:2900,           unit:'2대', shelfDays:7,  seller:'초록농장'},
+    {id:'p7',name:'친환경 양배추', short:'양배추',  emoji:'🥬',category:'vegetable', price:4500,           unit:'1통', shelfDays:12, seller:'초록농장'},
+    {id:'p8',name:'저지방 우유',   short:'우유',    emoji:'🥛',category:'dairy',     price:3200,           unit:'900ml',shelfDays:9, seller:'한들목장',isAllergen:true},
+  ];
+
+  var CAT_MAP = {채소:'vegetable', 과일:'fruit', 정육:'meat', 수산:'seafood', 유제품:'dairy'};
+  var won = function(n){return n.toLocaleString('ko-KR')+'원'};
+
+  /* ── Firebase (Optional) ── */
+  var db = null;
+  function initFB(){
+    if(FB_CONFIG.apiKey==='YOUR_API_KEY') return;
+    var s1=document.createElement('script');
+    s1.src='https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js';
+    s1.onload=function(){
+      var s2=document.createElement('script');
+      s2.src='https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-database-compat.min.js';
+      s2.onload=function(){try{firebase.initializeApp(FB_CONFIG);db=firebase.database();}catch(e){}};
+      document.body.appendChild(s2);
+    };
+    document.body.appendChild(s1);
+  }
+
+  /* ── State ── */
+  var cart=[], cat='전체', stage='browse', order=[], searchQ='';
+
+  function byId(id){for(var i=0;i<PRODUCTS.length;i++)if(PRODUCTS[i].id===id)return PRODUCTS[i];return null}
+
+  /* ── Render grid ── */
+  function getList(){
+    var list=PRODUCTS;
+    if(cat!=='전체') list=list.filter(function(p){return p.category===CAT_MAP[cat]});
+    if(searchQ) list=list.filter(function(p){return(p.name+p.seller+(p.tag||'')).toLowerCase().indexOf(searchQ)>=0});
+    return list;
+  }
+
+  function renderGrid(){
+    var list=getList();
+    var g=document.getElementById('grid');
+    if(!list.length){
+      g.innerHTML='<div class="empty"><div class="empty-ico">🔍</div><div class="empty-ttl">검색 결과 없음</div><div class="empty-sub">다른 키워드로 검색해보세요</div></div>';
+      return;
+    }
+    var h='';
+    for(var i=0;i<list.length;i++) h+=cardHtml(list[i]);
+    g.innerHTML=h;
+  }
+
+  function cardHtml(p){
+    var inCart=null;for(var i=0;i<cart.length;i++)if(cart[i].id===p.id){inCart=cart[i];break;}
+    var priceHtml=p.was
+      ?'<span class="price-sale">'+won(p.price)+'</span><span class="price-orig">'+won(p.was)+'</span>'
+      :'<span class="price-base">'+won(p.price)+'</span>';
+    var actHtml=inCart
+      ?'<div class="stepper"><button class="s-btn" onclick="sub(\''+p.id+'\')">−</button><span class="s-num" id="sq-'+p.id+'">'+inCart.qty+'</span><button class="s-btn" onclick="add(\''+p.id+'\')">+</button></div>'
+      :'<button class="addbtn" onclick="add(\''+p.id+'\')">담기</button>';
+    return '<div class="card">'
+      +'<div class="thumb">'+p.emoji
+      +(p.tag?'<span class="tag">'+p.tag+'</span>':'')
+      +'</div>'
+      +'<div class="cbody">'
+      +'<div class="cseller">'+p.seller+'</div>'
+      +'<div class="cname">'+p.name+'</div>'
+      +'<div class="cmeta">'+p.unit+' · 소비기한 '+p.shelfDays+'일</div>'
+      +'<div class="cprice">'+priceHtml+'</div>'
+      +'<div id="ca-'+p.id+'">'+actHtml+'</div>'
+      +'</div></div>';
+  }
+
+  /* ── Cart ops ── */
+  function add(id){
+    var p=byId(id);if(!p)return;
+    var hit=null;for(var i=0;i<cart.length;i++)if(cart[i].id===id){hit=cart[i];break;}
+    if(hit){hit.qty++;var sq=document.getElementById('sq-'+id);if(sq)sq.textContent=hit.qty;}
+    else{cart.push({id:p.id,name:p.name,short:p.short,emoji:p.emoji,category:p.category,price:p.price,was:p.was,unit:p.unit,shelfDays:p.shelfDays,seller:p.seller,isAllergen:!!p.isAllergen,qty:1});
+      var ae=document.getElementById('ca-'+id);
+      if(ae)ae.innerHTML='<div class="stepper"><button class="s-btn" onclick="sub(\''+id+'\')">−</button><span class="s-num" id="sq-'+id+'">1</span><button class="s-btn" onclick="add(\''+id+'\')">+</button></div>';
+    }
+    updateBar();
+  }
+  function sub(id){
+    for(var i=0;i<cart.length;i++){
+      if(cart[i].id===id){
+        if(cart[i].qty>1){
+          cart[i].qty--;
+          var sq=document.getElementById('sq-'+id);if(sq)sq.textContent=cart[i].qty;
+        } else {
+          cart.splice(i,1);
+          var ae=document.getElementById('ca-'+id);
+          if(ae)ae.innerHTML='<button class="addbtn" onclick="add(\''+id+'\')">담기</button>';
+        }
+        break;
+      }
+    }
+    updateBar();
+  }
+  function updateBar(){
+    var cnt=0,tot=0;
+    for(var i=0;i<cart.length;i++){cnt+=cart[i].qty;tot+=cart[i].qty*cart[i].price;}
+    document.getElementById('ckcnt').textContent=cnt;
+    document.getElementById('cktot').textContent=won(tot);
+    document.getElementById('ckbar').className=cnt>0?'ckbar':'ckbar hidden';
+    var cartCnt=document.getElementById('cartcnt');
+    cartCnt.textContent=cnt;
+    cartCnt.className=cnt>0?'cartcnt':'cartcnt hidden';
+  }
+
+  /* ── Cart popup ── */
+  function openCart(){
+    var list=document.getElementById('cart-list');
+    var total=0,cnt=0,h='';
+    for(var i=0;i<cart.length;i++){
+      var it=cart[i];
+      total+=it.qty*it.price;cnt+=it.qty;
+      h+='<div class="cart-row">'
+        +'<div class="cart-emo">'+it.emoji+'</div>'
+        +'<div class="cart-info">'
+        +'<div class="cart-name">'+it.name+'</div>'
+        +'<div class="cart-price">'+won(it.price)+' × '+it.qty+'</div>'
+        +'</div>'
+        +'<div class="cart-qty">'+it.qty+'개</div>'
+        +'</div>';
+    }
+    list.innerHTML=h||'<div class="cart-empty">장바구니가 비어 있어요</div>';
+    document.getElementById('cart-total').textContent=won(total);
+    document.getElementById('cart-ov').className='overlay';
+  }
+
+  /* ── Payment flow ── */
+  function pay(){
+    if(!cart.length) return;
+    order=cart.slice();cart=[];renderGrid();updateBar();
+    var cnt=order.reduce(function(s,i){return s+i.qty},0);
+    document.getElementById('pp-cnt').textContent=cnt;
+    var listHtml='';
+    for(var i=0;i<order.length;i++){
+      var it=order[i];
+      listHtml+='<div class="pp-row">'
+        +'<div class="pp-emo">'+it.emoji+'</div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div class="pp-rname">'+it.name+'</div>'
+        +'<div class="pp-rmeta">'+it.unit+' × '+it.qty+' · 소비기한 D-'+it.shelfDays+'</div>'
+        +'</div>'
+        +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#93A0AA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        +'</div>';
+    }
+    document.getElementById('pp-list').innerHTML=listHtml;
+    document.getElementById('pay-ov').className='overlay';
+    stage='paid';
+  }
+
+  function ppLater(){
+    document.getElementById('pay-ov').className='overlay hidden';
+    stage='browse';showToast('주문 내역에 저장했어요');
+  }
+
+  function sendToFridge(){
+    var btn=document.getElementById('pp-confirm');btn.disabled=true;
+    document.getElementById('pay-ov').className='overlay hidden';
+    document.getElementById('link-ov').className='overlay';
+    stage='linked';
+
+    var today=new Date();
+    function fmtDate(d){return d.toISOString().slice(0,10)}
+
+    function writeNext(idx){
+      if(idx>=order.length){done();return;}
+      var it=order[idx];
+      var exp=new Date(today.getTime());exp.setDate(today.getDate()+it.shelfDays);
+      var item={
+        name:it.name,category:it.category.toUpperCase(),expiry:fmtDate(exp),
+        qty:it.qty+'개',location:'냉장 1칸',addedDays:0,
+        isAllergen:!!it.isAllergen,source:'market',addedAt:fmtDate(today),freshness:98,fromShop:true
+      };
+      if(db){
+        db.ref('eatda/inventory').push(item).then(function(){writeNext(idx+1)}).catch(function(){writeNext(idx+1)});
+      } else {writeNext(idx+1);}
+    }
+
+    function done(){
+      setTimeout(function(){
+        document.getElementById('link-ov').className='overlay hidden';
+        btn.disabled=false;stage='browse';order=[];
+        showToast('모아밥에 연동됐어요');
+      }, db?200:1400);
+    }
+    writeNext(0);
+  }
+
+  /* ── Toast ── */
+  var toastTimer=null;
+  function showToast(msg){
+    var el=document.getElementById('toast');
+    el.textContent=msg;el.className='toast';
+    if(toastTimer)clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){el.className='toast hidden';},2100);
+  }
+
+  /* ── Search ── */
+  document.getElementById('si').oninput=function(){
+    searchQ=this.value.trim().toLowerCase();
+    document.getElementById('sclr').style.display=searchQ?'':'none';
+    renderGrid();
+  };
+  document.getElementById('sclr').onclick=function(){
+    document.getElementById('si').value='';searchQ='';
+    this.style.display='none';renderGrid();
+  };
+
+  /* ── Category ── */
+  document.getElementById('cats').onclick=function(e){
+    var t=e.target;while(t&&t!==this){
+      if(t.classList&&t.classList.contains('chip')){
+        this.querySelectorAll('.chip').forEach(function(c){c.className='chip';});
+        t.className='chip on';cat=t.getAttribute('data-cat');renderGrid();return;
+      }
+      t=t.parentNode;
+    }
+  };
+
+  /* ── Checkout / Payment ── */
+  document.getElementById('ckbtn').onclick=pay;
+  document.getElementById('cartbtn').onclick=openCart;
+  document.getElementById('cart-close').onclick=function(){
+    document.getElementById('cart-ov').className='overlay hidden';
+  };
+  document.getElementById('cart-pay').onclick=function(){
+    if(!cart.length){showToast('장바구니가 비어 있어요');return;}
+    document.getElementById('cart-ov').className='overlay hidden';
+    pay();
+  };
+  document.getElementById('pp-later').onclick=ppLater;
+  document.getElementById('pp-confirm').onclick=sendToFridge;
+
+  /* ── Boot ── */
+  renderGrid();
+  initFB();
+</script>
+</body>
+</html>
+
+```
