@@ -7,6 +7,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,6 +45,7 @@ fun VoiceOverlaySheet(
     sheetState: SheetState,
     inventory: List<FoodItem>,
     pendingDeleteItem: FoodItem?,
+    lastVoiceResponse: String? = null,
     onCommand: (VoiceCommand) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -156,24 +158,59 @@ fun VoiceOverlaySheet(
                 },
             )
 
-            // 인식된 텍스트
+            // 인식된 텍스트 (사용자 말풍선)
             if (heardText.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
-                        .padding(14.dp),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
                 ) {
-                    Text(
-                        "\"$heardText\"",
-                        fontSize   = 15.sp,
-                        color      = colors.text,
-                        fontWeight = FontWeight.Medium,
-                        textAlign  = TextAlign.Center,
-                        modifier   = Modifier.fillMaxWidth(),
-                    )
+                    Box(
+                        modifier = Modifier
+                            .widthIn(max = 280.dp)
+                            .clip(RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp))
+                            .background(colors.accent)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            "\"$heardText\"",
+                            fontSize   = 14.sp,
+                            color      = Color.White,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            }
+
+            // AI 응답 말풍선
+            if (lastVoiceResponse != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(colors.surfaceAlt),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("🤖", fontSize = 16.sp) }
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .widthIn(max = 260.dp)
+                            .clip(RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp))
+                            .background(colors.surface)
+                            .border(1.dp, colors.border, RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            lastVoiceResponse,
+                            fontSize  = 14.sp,
+                            color     = colors.text,
+                            lineHeight = 20.sp,
+                        )
+                    }
                 }
             }
 
