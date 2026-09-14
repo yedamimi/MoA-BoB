@@ -74,6 +74,7 @@ data class AppState(
     val firebaseConnected: Boolean = false,
     val pendingHaptic: HapticEvent? = null,
     val pendingTts: String? = null,
+    val lastVoiceResponse: String? = null,   // 음성 응답 텍스트 (화면에 표시)
     val marketArrivals: List<FoodItem> = emptyList(),
     val pendingDeleteItem: FoodItem? = null,   // 음성 삭제 확인 대기 아이템
     val household: Household? = null,
@@ -429,7 +430,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun closeItem()              = _state.update { it.copy(openItem = null) }
 
     fun openVoice()  = _state.update { it.copy(voiceOverlayOpen = true) }
-    fun closeVoice() = _state.update { it.copy(voiceOverlayOpen = false) }
+    fun closeVoice() = _state.update { it.copy(voiceOverlayOpen = false, lastVoiceResponse = null) }
 
     // ── 공동 냉장고 ───────────────────────────────────────────────────────────
 
@@ -549,7 +550,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                _state.update { it.copy(pendingTts = msg) }
+                _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
             }
 
             is VoiceCommand.SearchFood -> {
@@ -560,7 +561,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val total = items.sumOf { it.qty.filter { c -> c.isDigit() }.toIntOrNull() ?: 1 }
                     "네, ${command.foodName}이 ${total}개 등록되어 있습니다."
                 }
-                _state.update { it.copy(pendingTts = msg) }
+                _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
             }
 
             is VoiceCommand.ExpiringSoon -> {
@@ -576,40 +577,48 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         "3일 이내 유통기한이 만료되는 식품은 ${front}과 ${expiring.last().name}입니다."
                     }
                 }
-                _state.update { it.copy(pendingTts = msg) }
+                _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
             }
 
             is VoiceCommand.DeleteFood -> {
                 val item = inv.firstOrNull { it.name == command.foodName }
                 if (item != null) {
+                    val msg = "${item.name}을 삭제할까요?"
                     _state.update { it.copy(
-                        pendingDeleteItem = item,
-                        pendingTts        = "${item.name}을 삭제할까요?",
+                        pendingDeleteItem  = item,
+                        pendingTts         = msg,
+                        lastVoiceResponse  = msg,
                     )}
                 } else {
-                    _state.update { it.copy(pendingTts = "${command.foodName}은 냉장고에 없습니다.") }
+                    val msg = "${command.foodName}은 냉장고에 없습니다."
+                    _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
                 }
             }
 
             is VoiceCommand.Confirm -> {
                 val item = _state.value.pendingDeleteItem ?: return
+                val msg = "${item.name}을 삭제했습니다."
                 _state.update { s -> s.copy(
                     inventory         = s.inventory.filter { it.id != item.id },
                     pendingDeleteItem  = null,
-                    pendingTts        = "${item.name}을 삭제했습니다.",
+                    pendingTts        = msg,
+                    lastVoiceResponse = msg,
                     toast             = "${item.name} 삭제됨 🗑️",
                 )}
             }
 
             is VoiceCommand.Cancel -> {
+                val msg = "취소했습니다."
                 _state.update { it.copy(
-                    pendingDeleteItem = null,
-                    pendingTts        = "취소했습니다.",
+                    pendingDeleteItem  = null,
+                    pendingTts         = msg,
+                    lastVoiceResponse  = msg,
                 )}
             }
 
             is VoiceCommand.Unknown -> {
-                _state.update { it.copy(pendingTts = "죄송합니다. 다시 말씀해주세요.") }
+                val msg = "죄송합니다. 다시 말씀해주세요."
+                _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
             }
         }
     }
@@ -618,6 +627,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearHaptic() = _state.update { it.copy(pendingHaptic = null) }
     fun clearTts()    = _state.update { it.copy(pendingTts = null) }
+    fun clearVoiceResponse() = _state.update { it.copy(lastVoiceResponse = null) }
 
     // ── 리소스 해제 ───────────────────────────────────────────────────────────
 
