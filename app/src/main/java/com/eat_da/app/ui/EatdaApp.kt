@@ -174,12 +174,13 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
 
         if (state.voiceOverlayOpen) {
             VoiceOverlaySheet(
-                colors            = colors,
-                sheetState        = voiceSheetState,
-                inventory         = state.inventory,
-                pendingDeleteItem = state.pendingDeleteItem,
-                onCommand         = vm::handleVoiceCommand,
-                onDismiss         = vm::closeVoice,
+                colors             = colors,
+                sheetState         = voiceSheetState,
+                inventory          = state.inventory,
+                pendingDeleteItem  = state.pendingDeleteItem,
+                lastVoiceResponse  = state.lastVoiceResponse,
+                onCommand          = vm::handleVoiceCommand,
+                onDismiss          = vm::closeVoice,
             )
         }
 
