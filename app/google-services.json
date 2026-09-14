@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "814222087013",
+    "firebase_url": "https://eat-da-bd161-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "eat-da-bd161",
+    "storage_bucket": "eat-da-bd161.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:814222087013:android:ecbee3508105fe37e1478c",
+        "android_client_info": {
+          "package_name": "com.eatda.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAIV6waSVfYrjqzfWwmSNhshtUPy1JTROg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
