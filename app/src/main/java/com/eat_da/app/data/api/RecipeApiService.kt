@@ -9,7 +9,7 @@ import java.net.URL
 object RecipeApiService {
 
     // 식품안전나라에서 발급받은 인증키
-    private const val API_KEY = "6a1427bf84234fa8b427"
+    private const val API_KEY = "보안상 생략"
 
     suspend fun fetchRecipes(): List<Recipe> = withContext(Dispatchers.IO) {
         try {
