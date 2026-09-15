@@ -1,5 +1,6 @@
 package com.eatda.app.data.api
 
+import com.eatda.app.BuildConfig
 import com.eatda.app.data.model.Recipe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -9,7 +10,7 @@ import java.net.URL
 object RecipeApiService {
 
     // 식품안전나라에서 발급받은 인증키
-    private const val API_KEY = ""
+    private const val API_KEY = BuildConfig.EATDA_API_KEY
 
     suspend fun fetchRecipes(): List<Recipe> = withContext(Dispatchers.IO) {
         try {
@@ -40,7 +41,9 @@ object RecipeApiService {
                 val title = item.optString("RCP_NM")
 
                 // 레시피 음식 사진
+                // val imageUrl = item.optString("ATT_FILE_NO_MAIN")
                 val imageUrl = item.optString("ATT_FILE_NO_MAIN")
+                    .replace("http://", "https://")
 
                 // 재료 목록
                 val ingredientsText = item.optString("RCP_PARTS_DTLS")

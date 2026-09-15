@@ -32,6 +32,8 @@ import com.eatda.app.ui.components.*
 import com.eatda.app.ui.theme.*
 import com.eatda.app.util.VisionService
 import kotlinx.coroutines.launch
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 
 @Composable
 fun HomeScreen(
@@ -401,6 +403,12 @@ private fun RecipeHero(colors: EatdaColors, recipe: Recipe, onClick: () -> Unit)
                 .background(Brush.linearGradient(listOf(colors.accentSoft, colors.surfaceAlt))),
             contentAlignment = Alignment.BottomStart,
         ) {
+            AsyncImage(
+                model = recipe.imageUrl,
+                contentDescription = recipe.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
             Box(modifier = Modifier.fillMaxSize().background(colors.accentSoft.copy(alpha = 0.08f)))
             Row(
                 modifier = Modifier

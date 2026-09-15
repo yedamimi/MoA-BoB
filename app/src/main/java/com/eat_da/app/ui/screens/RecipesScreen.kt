@@ -3,6 +3,7 @@ package com.eatda.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +11,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,8 +28,8 @@ import com.eatda.app.data.model.FoodItem
 import com.eatda.app.data.model.Recipe
 import com.eatda.app.ui.components.*
 import com.eatda.app.ui.theme.*
-//import coil3.compose.AsyncImage
-//import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -38,6 +41,11 @@ fun RecipesScreen(
     onRecipeClick: (Recipe) -> Unit,
     recipeFocusIngredient: String? = null,
 ) {
+
+    // 레시피 카테고리 선택 상태
+    // 0 = 전체, 1 = 모든 재료, 2 = 4개 이상, 3 = 3개, 4 = 2개, 5 = 1개
+    val selectedCategory = remember { mutableStateOf(0) }
+
     val recommended = if (recipeFocusIngredient != null) {
 
         val availableRecipes = recipes
@@ -58,6 +66,88 @@ fun RecipesScreen(
             recipes = recipes,
             inventory = inventory
         )
+    }
+
+    val filteredRecipes = when (selectedCategory.value) {
+        0 -> recommended
+        1 -> recommended.filter { recipe ->
+            // 모든 재료가 냉장고 재료와 일치하는 레시피
+            recipe.ingredients.all { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+        }
+        2 -> recommended.filter { recipe ->
+            val matchedCount = recipe.ingredients.count { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+
+            val allMatched = recipe.ingredients.all { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+
+            matchedCount >= 4 && !allMatched
+        }
+        3 -> recommended.filter { recipe ->
+            val matchedCount = recipe.ingredients.count { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+
+            val allMatched = recipe.ingredients.all { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+
+            matchedCount == 3 && !allMatched
+        }
+        4 -> recommended.filter { recipe ->
+            val matchedCount = recipe.ingredients.count { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+
+            val allMatched = recipe.ingredients.all { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+
+            matchedCount == 2 && !allMatched
+        }
+        5 -> recommended.filter { recipe ->
+            val matchedCount = recipe.ingredients.count { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+
+            val allMatched = recipe.ingredients.all { ingredient ->
+                inventory.any { item ->
+                    ingredient.contains(item.name) ||
+                            item.name.contains(ingredient)
+                }
+            }
+
+            matchedCount == 1 && !allMatched
+        }
+        else -> recommended
     }
 
     val expiringItems = inventory
@@ -96,6 +186,74 @@ fun RecipesScreen(
                     vertical = 14.dp
                 )
             )
+        }
+
+        // ─────────────────────────────
+        // 레시피 카테고리
+        // ─────────────────────────────
+
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 14.dp)
+                    .horizontalScroll(
+                        androidx.compose.foundation.rememberScrollState()
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+
+                val categories = listOf(
+                    "전체",
+                    "모든 재료",
+                    "4개 이상",
+                    "3개",
+                    "2개",
+                    "1개"
+                )
+
+                categories.forEachIndexed { index, category ->
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(
+                                if (selectedCategory.value == index) {
+                                    colors.accent
+                                } else {
+                                    colors.surface
+                                }
+                            )
+                            .border(
+                                1.dp,
+                                if (selectedCategory.value == index) {
+                                    colors.accent
+                                } else {
+                                    colors.border
+                                },
+                                RoundedCornerShape(999.dp)
+                            )
+                            .clickable {
+                                selectedCategory.value = index
+                            }
+                            .padding(
+                                horizontal = 14.dp,
+                                vertical = 7.dp
+                            )
+                    ) {
+                        Text(
+                            text = category,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (selectedCategory.value == index) {
+                                Color.White
+                            } else {
+                                colors.text
+                            }
+                        )
+                    }
+                }
+            }
         }
 
         // ─────────────────────────────
@@ -227,7 +385,7 @@ fun RecipesScreen(
 
         } else {
 
-            items(recommended) { recipe ->
+            items(filteredRecipes) { recipe ->
 
                 RecipeCard(
                     colors = colors,
@@ -293,14 +451,14 @@ private fun RecipeCard(
         ) {
 
             // 식품안전나라 대표 음식 사진
-//            if (recipe.imageUrl.isNotBlank()) {
-//                AsyncImage(
-//                    model = recipe.imageUrl,
-//                    contentDescription = recipe.title,
-//                    modifier = Modifier.fillMaxSize(),
-//                    contentScale = ContentScale.Crop,
-//                )
-//            }
+            if (recipe.imageUrl.isNotBlank()) {
+                AsyncImage(
+                    model = recipe.imageUrl,
+                    contentDescription = recipe.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
 
             // 우선 소진 등의 priority가 있으면
             // 기존 배지 그대로 표시

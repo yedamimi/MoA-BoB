@@ -28,7 +28,7 @@ android {
         versionName = "1.0.0"
         buildConfigField("String", "EATDA_TTS_KEY",    "\"${localKey("eatda-android-tts-key")}\"")
         buildConfigField("String", "EATDA_VISION_KEY", "\"${localKey("eatda-android-vision-key")}\"")
-        buildConfigField("String", "EATDA_RECIPE_KEY", "\"${localKey("eatda-recipe-key")}\"")
+        buildConfigField("String", "EATDA_API_KEY", "\"${localKey("EATDA_API_KEY")}\"")
     }
 
     buildTypes {
@@ -49,6 +49,15 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    buildTypes {
+        debug {
+            buildConfigField("String", "EATDA_API_KEY", "\"6a1427bf84234fa8b427\"")
+        }
+        release {
+            buildConfigField("String", "EATDA_API_KEY", "\"6a1427bf84234fa8b427\"")
+        }
     }
 }
 
@@ -75,6 +84,6 @@ dependencies {
     implementation(libs.mlkit.ocr)
     implementation(libs.mlkit.ocr.korean)
 
-//    implementation(libs.coil.compose)
-//    implementation(libs.coil.network.okhttp)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 }

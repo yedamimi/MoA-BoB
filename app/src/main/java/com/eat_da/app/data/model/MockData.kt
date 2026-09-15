@@ -246,7 +246,7 @@ fun recommendRecipes(
     return recipes
         .map { recipe ->
 
-            // [수정] 보유 재료와 일치하는 개수
+            // 보유 재료와 일치하는 개수
             // API 재료명에 "두부 1모", "양파 1/2개"처럼 수량이 포함될 수 있으므로 contains() 사용
             val matchedCount = recipe.ingredients.count { ingredient ->
                 availableIngredients.any { available ->
@@ -263,7 +263,7 @@ fun recommendRecipes(
                     0.0
                 }
 
-            // [수정] 유통기한 임박 재료와 일치하는 개수
+            // 유통기한 임박 재료와 일치하는 개수
             val expiringCount = recipe.ingredients.count { ingredient ->
                 expiringIngredients.any { expiring ->
                     ingredient.contains(expiring) ||
@@ -308,7 +308,34 @@ fun recommendRecipes(
         }
 
         // 점수 높은 순으로 정렬
-        .sortedByDescending { it.second }
+        // .sortedByDescending { it.second }
+
+        // 보유 재료 일치 개수에 따른 추천 우선순위
+        // 모든 재료 일치 → 4개 이상 → 3개 → 2개 → 1개
+        .sortedWith(
+            compareByDescending<Triple<Recipe, Double, Int>> { (recipe, _, matchedCount) ->
+                when {
+                    // 레시피의 모든 재료를 보유한 경우
+                    matchedCount == recipe.ingredients.size -> 5
+
+                    // 보유 재료가 4개 이상 일치
+                    matchedCount >= 4 -> 4
+
+                    // 보유 재료가 3개 일치
+                    matchedCount == 3 -> 3
+
+                    // 보유 재료가 2개 일치
+                    matchedCount == 2 -> 2
+
+                    // 보유 재료가 1개 일치
+                    matchedCount == 1 -> 1
+
+                    else -> 0
+                }
+            }
+                // 같은 카테고리 안에서는 기존 totalScore가 높은 순
+                .thenByDescending { it.second }
+        )
 
         // Recipe 객체만 추출
         .map { it.first }
