@@ -576,25 +576,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             is VoiceCommand.SearchFood -> {
                 val items = inv.filter { it.name == command.foodName }
                 val msg = if (items.isEmpty()) {
-                    "${command.foodName}은 냉장고에 없습니다."
+                    "아니요, 냉장고에 ${command.foodName}이 없습니다."
                 } else {
-                    val total = items.sumOf { it.qty.filter { c -> c.isDigit() }.toIntOrNull() ?: 1 }
-                    "네, ${command.foodName}이 ${total}개 등록되어 있습니다."
+                    val qtyText = items.firstOrNull()?.qty ?: "1개"
+                    "네, 냉장고에 ${command.foodName}이 ${qtyText} 있습니다."
                 }
                 _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
             }
 
             is VoiceCommand.ExpiringSoon -> {
-                val threshold = LocalDate.now().plusDays(3)
+                val days      = command.days
+                val threshold = LocalDate.now().plusDays(days.toLong())
                 val expiring  = inv
                     .filter { it.expiry != null && !it.expiry.isAfter(threshold) }
                     .sortedBy { it.expiry }
+                val dayLabel = when (days) {
+                    1    -> "하루"
+                    2    -> "이틀"
+                    3    -> "사흘"
+                    4    -> "나흘"
+                    5    -> "닷새"
+                    7    -> "일주일"
+                    else -> "${days}일"
+                }
                 val msg = when (expiring.size) {
-                    0    -> "3일 이내 유통기한이 만료되는 식품은 없습니다."
-                    1    -> "3일 이내 유통기한이 만료되는 식품은 ${expiring[0].name}입니다."
+                    0    -> "네, ${dayLabel} 이내 유통기한이 만료되는 식품은 없습니다."
+                    1    -> "네, 유통기한 ${dayLabel} 남은 제품은 ${expiring[0].name}입니다."
                     else -> {
-                        val front = expiring.dropLast(1).joinToString(", ") { it.name }
-                        "3일 이내 유통기한이 만료되는 식품은 ${front}과 ${expiring.last().name}입니다."
+                        val names = expiring.joinToString(", ") { it.name }
+                        "네, 유통기한 ${dayLabel} 남은 제품은 ${names}입니다."
                     }
                 }
                 _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
