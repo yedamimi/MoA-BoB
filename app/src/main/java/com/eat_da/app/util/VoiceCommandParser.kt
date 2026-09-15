@@ -6,8 +6,8 @@ sealed class VoiceCommand {
     data class ExpiryQuery(val foodName: String) : VoiceCommand()
     /** "냉장고에 우유 있어?" */
     data class SearchFood(val foodName: String)  : VoiceCommand()
-    /** "곧 상하는 음식 알려줘" */
-    object ExpiringSoon                          : VoiceCommand()
+    /** "유통기한 하루 남은 거 있어?" — days=1,2,3,7 등 */
+    data class ExpiringSoon(val days: Int = 3)   : VoiceCommand()
     /** "우유 삭제해줘" */
     data class DeleteFood(val foodName: String)  : VoiceCommand()
     /** "응", "네" → 삭제 확인 */
@@ -31,12 +31,29 @@ object VoiceCommandParser {
         if (CANCEL.any  { t.startsWith(it, ignoreCase = true) }) return VoiceCommand.Cancel
 
         // ── 임박 식품 조회 ───────────────────────────────────────────────────
+        // "유통기한 하루 남은 거 있어?", "유통기한 5일 남은 거 있어?" 등
+        val daysFromText: Int = when {
+            "하루" in t                               -> 1
+            "이틀" in t                               -> 2
+            "사흘" in t                               -> 3
+            "나흘" in t                               -> 4
+            "닷새" in t                               -> 5
+            "일주일" in t                             -> 7
+            "오늘" in t && "만료" in t                -> 1
+            else -> {
+                // "5일", "10일" 등 숫자+일 패턴
+                Regex("""(\d+)\s*일""").find(t)
+                    ?.groupValues?.get(1)?.toIntOrNull() ?: 3
+            }
+        }
         val expiryNearKeywords = listOf("상하는", "임박", "곧 상", "유통기한 얼마", "만료")
         val foodContext        = listOf("음식", "식품", "식재료", "거", "것", "게")
         val isExpiringSoon = expiryNearKeywords.any { it in t }
-            || ("곧" in t && foodContext.any { it in t })
-            || ("얼마" in t && ("남았" in t || "안 남" in t))
-        if (isExpiringSoon) return VoiceCommand.ExpiringSoon
+                || ("곧" in t && foodContext.any { it in t })
+                || ("얼마" in t && ("남았" in t || "안 남" in t))
+                || ("유통기한" in t && "남은" in t)
+                || ("유통기한" in t && foodContext.any { it in t } && ("있어" in t || "알려줘" in t))
+        if (isExpiringSoon) return VoiceCommand.ExpiringSoon(daysFromText)
 
         // ── 재고에서 식품명 탐색 (긴 이름 우선 — "방울토마토" > "토마토") ──
         val foodName = inventoryNames
