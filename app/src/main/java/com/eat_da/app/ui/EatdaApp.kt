@@ -1,5 +1,6 @@
 package com.eatda.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -35,6 +36,14 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
     val settings = state.settings
     val context = LocalContext.current
     val ttsPlaying by TtsService.isPlaying.collectAsStateWithLifecycle()
+
+    // 시스템 뒤로가기 처리
+    BackHandler(
+        enabled = state.screen == Screen.RECIPE_DETAIL
+    ) {
+        vm.closeRecipe()
+    }
+
 
     val colors = when {
         settings.colorBlindMode -> ColorBlindEatdaColors

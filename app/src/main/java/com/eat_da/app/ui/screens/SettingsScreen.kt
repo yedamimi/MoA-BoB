@@ -83,22 +83,14 @@ fun SettingsScreen(
                 SettingsDivider(colors)
                 SettingsRow(
                     colors, sizes, EatdaIcons.Clock, "유통기한 D-7 알림", null,
+                    last = true,
                     right = {
                         EatdaToggle(colors, on = settings.notifExpiryD7, label = "D-7 알림") {
                             onUpdateSettings(settings.copy(notifExpiryD7 = it))
                         }
                     },
                 )
-                SettingsDivider(colors)
-                SettingsRow(
-                    colors, sizes, EatdaIcons.Sparkle, "레시피 추천", null,
-                    last = true,
-                    right = {
-                        EatdaToggle(colors, on = settings.notifRecipe, label = "레시피 추천 알림") {
-                            onUpdateSettings(settings.copy(notifRecipe = it))
-                        }
-                    },
-                )
+
             }
             Spacer(Modifier.height(18.dp))
         }
