@@ -192,7 +192,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val ttsText = if (results.isNotEmpty()) {
                     val names = results.take(3).joinToString(", ") { it.name }
                     val more  = if (results.size > 3) " 외 ${results.size - 3}개" else ""
-                    "${names}${more}가 인식됐습니다"
+                    "$names${more}가 인식됐습니다"
                 } else null
 
                 _state.update { s ->
@@ -227,13 +227,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
                 val source = snapshot.child("source").getValue(String::class.java)
                 if (source != "market") return
-
                 val item = parseInventoryItem(snapshot) ?: return
-
-                _state.update { s ->
-                    if (s.marketArrivals.any { it.id == item.id }) s
-                    else s.copy(marketArrivals = s.marketArrivals + item)
-                }
+                autoAddMarketItem(item)
             }
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
             override fun onChildRemoved(snapshot: DataSnapshot) {}
@@ -243,47 +238,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         db.child("inventory").addChildEventListener(marketListener!!)
     }
 
-    fun dismissMarketArrivals() {
-        _state.update { it.copy(marketArrivals = emptyList()) }
+    private fun autoAddMarketItem(item: FoodItem) {
+        val stockKey = when (item.name) {
+            "오이"    -> "oi"
+            "사과"    -> "apple"
+            "바나나"  -> "banana"
+            "오렌지"  -> "orange"
+            "브로콜리" -> "broccoli"
+            "당근"    -> "carrot"
+            "샌드위치" -> "sandwich"
+            "피자"    -> "pizza"
+            "도넛"    -> "donut"
+            "케이크"  -> "cake"
+            "핫도그"  -> "hot dog"
+            "두부"    -> "tofu"
+            else      -> item.name
+        }
+        val count = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
+        val stockRef = Firebase.database.reference.child("stocks").child(stockKey)
+        stockRef.get().addOnSuccessListener { snapshot ->
+            val current = snapshot.getValue(Int::class.java) ?: 0
+            stockRef.setValue(current + count)
+        }
+        _state.update { it.copy(toast = "${item.name} 냉장고에 추가됐어요 🧊") }
     }
 
-    fun confirmMarketArrivals() {
-        val arrivals = _state.value.marketArrivals
-
-        arrivals.forEach { item ->
-            val stockKey = when (item.name) {
-                "오이"    -> "oi"
-                "사과"    -> "apple"
-                "바나나"  -> "banana"
-                "오렌지"  -> "orange"
-                "브로콜리" -> "broccoli"
-                "당근"    -> "carrot"
-                "샌드위치" -> "sandwich"
-                "피자"    -> "pizza"
-                "도넛"    -> "donut"
-                "케이크"  -> "cake"
-                "핫도그"  -> "hot dog"
-                "두부"    -> "tofu"
-                else      -> item.name
-            }
-
-            val count = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
-
-            val stockRef = Firebase.database.reference.child("stocks").child(stockKey)
-            stockRef.get().addOnSuccessListener { snapshot ->
-                val currentCount = snapshot.getValue(Int::class.java) ?: 0
-                stockRef.setValue(currentCount + count)
-            }
-        }
-
-        _state.update { s ->
-            s.copy(
-                inventory      = s.inventory + s.marketArrivals,
-                marketArrivals = emptyList(),
-                toast          = "냉장고 재고가 업데이트됐어요 🧊",
-            )
-        }
-    }
+    fun dismissMarketArrivals() {}
+    fun confirmMarketArrivals() {}
 
     // ── 알림 생성 ─────────────────────────────────────────────────────────────
 
@@ -298,7 +279,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val days = item.daysLeft()
             val notif = when {
                 days <= 0 && settings.notifExpiryDDay -> AppNotification(
-                    id = "exp_dday_${item.id}", type = NotifType.EXPIRY_SOON,
+                    id = "exp_d0_${item.id}", type = NotifType.EXPIRY_SOON,
                     title = "${item.name} 유통기한 만료",
                     body = "${item.location}에 보관 중입니다.", time = "오늘", urgent = true,
                 )
@@ -600,11 +581,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     else -> "${days}일"
                 }
                 val msg = when (expiring.size) {
-                    0    -> "네, ${dayLabel} 이내 유통기한이 만료되는 식품은 없습니다."
-                    1    -> "네, 유통기한 ${dayLabel} 남은 제품은 ${expiring[0].name}입니다."
+                    0    -> "네, $dayLabel 이내 유통기한이 만료되는 식품은 없습니다."
+                    1    -> "네, 유통기한 $dayLabel 남은 제품은 ${expiring[0].name}입니다."
                     else -> {
                         val names = expiring.joinToString(", ") { it.name }
-                        "네, 유통기한 ${dayLabel} 남은 제품은 ${names}입니다."
+                        "네, 유통기한 $dayLabel 남은 제품은 ${names}입니다."
                     }
                 }
                 _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
