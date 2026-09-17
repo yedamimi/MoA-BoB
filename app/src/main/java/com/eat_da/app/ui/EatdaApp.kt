@@ -196,6 +196,8 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 inventory          = state.inventory,
                 pendingDeleteItem  = state.pendingDeleteItem,
                 lastVoiceResponse  = state.lastVoiceResponse,
+                isAddMode          = state.isAddMode,
+                addedItems         = state.addedItems,
                 onCommand          = vm::handleVoiceCommand,
                 onDismiss          = vm::closeVoice,
             )
