@@ -52,6 +52,16 @@ data class AppSettings(
     val notifRecipe: Boolean = true,
 )
 
+// ── 식약처 로컬 기본값 (expiry 없을 때 사용) ──────────────────────────────────
+private val DEFAULT_SHELF_DAYS: Map<String, Long> = mapOf(
+    "사과" to 30L, "바나나" to 7L, "오렌지" to 21L, "포도" to 7L, "딸기" to 5L,
+    "수박" to 7L, "참외" to 7L, "복숭아" to 5L, "배" to 30L, "귤" to 14L,
+    "당근" to 21L, "오이" to 7L, "감자" to 30L, "고구마" to 30L, "양파" to 30L,
+    "마늘" to 30L, "브로콜리" to 7L, "시금치" to 3L, "상추" to 3L, "토마토" to 7L,
+    "계란" to 30L, "우유" to 7L, "두부" to 5L, "돼지고기" to 3L, "닭고기" to 2L,
+    "소고기" to 3L, "생선" to 2L,
+)
+
 // ── 상태 ──────────────────────────────────────────────────────────────────────
 
 data class AppState(
@@ -65,7 +75,8 @@ data class AppState(
     val allergens: List<Allergen> = defaultAllergens,
     val toast: String? = null,
     val settings: AppSettings = AppSettings(),
-    val inventory: List<FoodItem> = emptyList(),
+    val inventory: List<FoodItem> = emptyList(),        // stocks + webcam 병합
+    val webcamItems: List<FoodItem> = emptyList(),      // 웹캠 인식 아이템 (소비기한 포함)
     val notifications: List<AppNotification> = emptyList(),
     val recipes: List<Recipe> = emptyList(),
     val recipeFocusIngredient: String? = null,
@@ -75,12 +86,15 @@ data class AppState(
     val firebaseConnected: Boolean = false,
     val pendingHaptic: HapticEvent? = null,
     val pendingTts: String? = null,
-    val lastVoiceResponse: String? = null,   // 음성 응답 텍스트 (화면에 표시)
+    val lastVoiceResponse: String? = null,
     val marketArrivals: List<FoodItem> = emptyList(),
-    val pendingDeleteItem: FoodItem? = null,   // 음성 삭제 확인 대기 아이템
+    val pendingDeleteItem: FoodItem? = null,
     val household: Household? = null,
     val householdMembers: List<HouseholdMember> = emptyList(),
     val myUserId: String = "",
+    // ── 음성 재고 추가 모드 ──────────────────────────────────────────────────
+    val isAddMode: Boolean = false,           // "재고 추가 모드 열어줘" 로 진입
+    val addedItems: List<FoodItem> = emptyList(), // 이번 세션에 추가한 항목 (오버레이 표시용)
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -93,24 +107,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val db     = Firebase.database.reference.child("eatda")
     private val ctx    get() = getApplication<Application>()
 
-    private var inventoryListener:    ValueEventListener? = null
-    private var scanResultsListener:  ValueEventListener? = null
-    private var scanStatusListener:   ValueEventListener? = null
-    private var marketListener:       ChildEventListener? = null
+    private var inventoryListener:       ValueEventListener? = null
+    private var scanResultsListener:     ValueEventListener? = null
+    private var scanStatusListener:      ValueEventListener? = null
+    private var arrivalsListener:        ChildEventListener? = null
     private var householdMemberListener: ValueEventListener? = null
     private var allergenHapticFired = false
+
+    private val listenerStartTime = System.currentTimeMillis()
 
     init {
         val userId = HouseholdManager.getOrCreateUserId(ctx)
         _state.update { it.copy(myUserId = userId) }
 
-        // 저장된 가구 ID가 있으면 자동 로드
         HouseholdManager.getSavedHouseholdId(ctx)?.let { loadHousehold(it) }
 
         listenToInventory()
         listenToScanResults()
         listenToScanStatus()
-        listenToMarketArrivals()
+        listenToArrivals()
         loadRecipes()
     }
 
@@ -120,7 +135,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val recipes = RecipeApiService.fetchRecipes()
             _state.update { it.copy(recipes = recipes) }
-            println("레시피 개수: ${recipes.size}")
         }
     }
 
@@ -129,7 +143,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun listenToInventory() {
         inventoryListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val items = snapshot.children.mapNotNull { stock ->
+                val stockItems = snapshot.children.mapNotNull { stock ->
                     val count = stock.getValue(Int::class.java) ?: 0
                     if (count <= 0) return@mapNotNull null
 
@@ -161,8 +175,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
-                val notifs = buildNotifications(items, _state.value.settings, _state.value.allergens)
-                _state.update { it.copy(inventory = items, notifications = notifs, firebaseConnected = true) }
+                val webcam   = _state.value.webcamItems
+                val combined = stockItems + webcam.filter { w -> stockItems.none { it.name == w.name } }
+                val notifs   = buildNotifications(combined, _state.value.settings, _state.value.allergens)
+                _state.update { it.copy(inventory = combined, notifications = notifs, firebaseConnected = true) }
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -220,22 +236,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         db.child("scan_status").addValueEventListener(scanStatusListener!!)
     }
 
-    // ── 마켓 구매 감지 (eatda/inventory, source=="market") ────────────────────
-
-    private fun listenToMarketArrivals() {
-        marketListener = object : ChildEventListener {
+    private fun listenToArrivals() {
+        arrivalsListener = object : ChildEventListener {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val source = snapshot.child("source").getValue(String::class.java)
-                if (source != "market") return
-                val item = parseInventoryItem(snapshot) ?: return
-                autoAddMarketItem(item)
+                when (snapshot.child("source").getValue(String::class.java)) {
+                    "market" -> {
+                        val item = parseInventoryItem(snapshot) ?: return
+                        autoAddMarketItem(item)
+                    }
+                    "webcam" -> {
+                        val ts = snapshot.child("timestamp").getValue(Long::class.java) ?: 0L
+                        if (ts < listenerStartTime) return
+                        val item = parseInventoryItem(snapshot) ?: return
+                        addWebcamItem(item)
+                    }
+                }
             }
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
             override fun onChildRemoved(snapshot: DataSnapshot) {}
             override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
             override fun onCancelled(error: DatabaseError) {}
         }
-        db.child("inventory").addChildEventListener(marketListener!!)
+        db.child("inventory").addChildEventListener(arrivalsListener!!)
     }
 
     private fun autoAddMarketItem(item: FoodItem) {
@@ -254,13 +276,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             "두부"    -> "tofu"
             else      -> item.name
         }
-        val count = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
+        val count    = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
         val stockRef = Firebase.database.reference.child("stocks").child(stockKey)
         stockRef.get().addOnSuccessListener { snapshot ->
             val current = snapshot.getValue(Int::class.java) ?: 0
             stockRef.setValue(current + count)
         }
         _state.update { it.copy(toast = "${item.name} 냉장고에 추가됐어요 🧊") }
+    }
+
+    private fun addWebcamItem(item: FoodItem) {
+        _state.update { s ->
+            if (s.webcamItems.any { it.name == item.name && it.expiry == item.expiry }) return@update s
+            val newWebcam  = s.webcamItems + item
+            val stocksOnly = s.inventory.filter { inv -> s.webcamItems.none { it.name == inv.name } }
+            val combined   = stocksOnly + newWebcam.filter { w -> stocksOnly.none { it.name == w.name } }
+            val notifs     = buildNotifications(combined, s.settings, s.allergens)
+            s.copy(webcamItems = newWebcam, inventory = combined, notifications = notifs,
+                toast = "${item.name} 웹캠으로 인식됐어요 📷")
+        }
     }
 
     fun dismissMarketArrivals() {}
@@ -359,22 +393,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun closeRecipe()              = _state.update { it.copy(selectedRecipe = null, screen = Screen.RECIPES) }
 
     fun openRecipeRecommendations(foodName: String) {
-        _state.update {
-            it.copy(
-                openItem = null,
-                recipeFocusIngredient = foodName,
-                screen = Screen.RECIPES
-            )
-        }
+        _state.update { it.copy(openItem = null, recipeFocusIngredient = foodName, screen = Screen.RECIPES) }
     }
 
     fun openRecipesFromNavigation() {
-        _state.update {
-            it.copy(
-                recipeFocusIngredient = null,
-                screen = Screen.RECIPES
-            )
-        }
+        _state.update { it.copy(recipeFocusIngredient = null, screen = Screen.RECIPES) }
     }
 
     fun startScan(mode: ScanMode) {
@@ -431,7 +454,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun closeItem()              = _state.update { it.copy(openItem = null) }
 
     fun openVoice()  = _state.update { it.copy(voiceOverlayOpen = true) }
-    fun closeVoice() = _state.update { it.copy(voiceOverlayOpen = false, lastVoiceResponse = null) }
+    fun closeVoice() = _state.update { it.copy(voiceOverlayOpen = false, lastVoiceResponse = null, isAddMode = false, addedItems = emptyList()) }
 
     // ── 공동 냉장고 ───────────────────────────────────────────────────────────
 
@@ -472,7 +495,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val household  = Household(id = householdId, name = name, inviteCode = inviteCode, ownerId = ownerId)
                 _state.update { it.copy(household = household) }
 
-                // 구성원 실시간 구독
                 householdMemberListener?.let { HouseholdManager.removeListener(householdId, it) }
                 householdMemberListener = HouseholdManager.listenToMembers(householdId) { members ->
                     _state.update { it.copy(householdMembers = members) }
@@ -533,6 +555,103 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val inv = _state.value.inventory
         when (command) {
 
+            // ── 재고 추가 모드 진입 ───────────────────────────────────────────
+            VoiceCommand.EnterAddMode -> {
+                val msg = "재고 추가 모드입니다. 추가할 식재료를 말씀하세요."
+                _state.update { it.copy(
+                    isAddMode  = true,
+                    addedItems = emptyList(),
+                    pendingTts = msg,
+                    lastVoiceResponse = msg,
+                )}
+            }
+
+            // ── 재고 추가 모드 종료 ───────────────────────────────────────────
+            VoiceCommand.ExitAddMode -> {
+                val count = _state.value.addedItems.size
+                val msg   = if (count > 0) "총 ${count}개 항목이 추가됐습니다." else "추가 모드를 종료합니다."
+                _state.update { it.copy(
+                    isAddMode  = false,
+                    addedItems = emptyList(),
+                    pendingTts = msg,
+                    lastVoiceResponse = msg,
+                )}
+            }
+
+            // ── 음성으로 재고 여러 개 한 번에 추가 ───────────────────────────
+            is VoiceCommand.AddFoods -> {
+                val newItems = command.items.map { cmd ->
+                    val expiry = if (cmd.expiry != null) {
+                        runCatching { LocalDate.parse(cmd.expiry) }.getOrNull()
+                            ?: LocalDate.now().plusDays(7)
+                    } else {
+                        LocalDate.now().plusDays(DEFAULT_SHELF_DAYS[cmd.name] ?: 7L)
+                    }
+                    FoodItem(
+                        id         = (System.currentTimeMillis() + cmd.name.hashCode()).toInt(),
+                        name       = cmd.name,
+                        qty        = cmd.qty,
+                        category   = FoodCategory.GRAIN,
+                        expiry     = expiry,
+                        location   = "냉장고",
+                        addedDays  = 0,
+                        isAllergen = false,
+                    )
+                }
+                val newInventory  = _state.value.inventory + newItems
+                val newAddedItems = _state.value.addedItems + newItems
+                val notifs        = buildNotifications(newInventory, _state.value.settings, _state.value.allergens)
+                val names         = newItems.joinToString(", ") { "${it.name} ${it.qty}" }
+                val msg           = "${names} 추가됐어요."
+                _state.update { s -> s.copy(
+                    inventory         = newInventory,
+                    addedItems        = newAddedItems,
+                    notifications     = notifs,
+                    pendingTts        = msg,
+                    lastVoiceResponse = msg,
+                )}
+            }
+
+            // ── 음성으로 재고 추가 ────────────────────────────────────────────
+            is VoiceCommand.AddFood -> {
+                val expiry = if (command.expiry != null) {
+                    runCatching { LocalDate.parse(command.expiry) }.getOrNull()
+                        ?: LocalDate.now().plusDays(7)
+                } else {
+                    // 식약처 로컬 기본값 — expiry 없이 말한 경우 (신선식품)
+                    val days = DEFAULT_SHELF_DAYS[command.name] ?: 7L
+                    LocalDate.now().plusDays(days)
+                }
+
+                val newItem = FoodItem(
+                    id        = System.currentTimeMillis().toInt(),
+                    name      = command.name,
+                    qty       = command.qty,
+                    category  = FoodCategory.GRAIN,
+                    expiry    = expiry,
+                    location  = "냉장고",
+                    addedDays = 0,
+                    isAllergen = false,
+                )
+
+                val newAddedItems = _state.value.addedItems + newItem
+                val newInventory  = _state.value.inventory + newItem
+                val notifs        = buildNotifications(newInventory, _state.value.settings, _state.value.allergens)
+
+                val expiryText  = "${expiry.monthValue}월 ${expiry.dayOfMonth}일"
+                val sourceLabel = if (command.expiry == null) " (기본값)" else ""
+                val msg = "${command.name} ${command.qty}, 소비기한 $expiryText${sourceLabel} 추가됐어요."
+
+                _state.update { s -> s.copy(
+                    inventory         = newInventory,
+                    addedItems        = newAddedItems,
+                    notifications     = notifs,
+                    pendingTts        = msg,
+                    lastVoiceResponse = msg,
+                )}
+            }
+
+            // ── 유통기한 조회 ─────────────────────────────────────────────────
             is VoiceCommand.ExpiryQuery -> {
                 val item = inv.firstOrNull { it.name == command.foodName }
                 val msg = when {
@@ -595,22 +714,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val item = inv.firstOrNull { it.name == command.foodName }
                 if (item != null) {
                     val msg = "${item.name}을 삭제할까요?"
-                    _state.update { it.copy(
-                        pendingDeleteItem  = item,
-                        pendingTts         = msg,
-                        lastVoiceResponse  = msg,
-                    )}
+                    _state.update { it.copy(pendingDeleteItem = item, pendingTts = msg, lastVoiceResponse = msg) }
                 } else {
                     val msg = "${command.foodName}은 냉장고에 없습니다."
                     _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
                 }
             }
 
-            is VoiceCommand.Confirm -> {
+            VoiceCommand.Confirm -> {
                 val item = _state.value.pendingDeleteItem ?: return
                 val msg = "${item.name}을 삭제했습니다."
                 _state.update { s -> s.copy(
                     inventory         = s.inventory.filter { it.id != item.id },
+                    webcamItems       = s.webcamItems.filter { it.id != item.id },
                     pendingDeleteItem  = null,
                     pendingTts        = msg,
                     lastVoiceResponse = msg,
@@ -618,12 +734,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )}
             }
 
-            is VoiceCommand.Cancel -> {
+            VoiceCommand.Cancel -> {
                 val msg = "취소했습니다."
+                _state.update { it.copy(pendingDeleteItem = null, pendingTts = msg, lastVoiceResponse = msg) }
+            }
+
+            // ── 이전 (음성 초기 화면으로 복귀) ──────────────────────────────────
+            VoiceCommand.Back -> {
                 _state.update { it.copy(
-                    pendingDeleteItem  = null,
-                    pendingTts         = msg,
-                    lastVoiceResponse  = msg,
+                    lastVoiceResponse = null,
+                    isAddMode         = false,
+                    addedItems        = emptyList(),
                 )}
             }
 
@@ -647,7 +768,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         inventoryListener?.let  { Firebase.database.reference.child("stocks").removeEventListener(it) }
         scanResultsListener?.let { db.child("scan_results").removeEventListener(it) }
         scanStatusListener?.let  { db.child("scan_status").removeEventListener(it) }
-        marketListener?.let      { db.child("inventory").removeEventListener(it) }
+        arrivalsListener?.let    { db.child("inventory").removeEventListener(it) }
         _state.value.household?.id?.let { hid ->
             householdMemberListener?.let { HouseholdManager.removeListener(hid, it) }
         }
