@@ -28,6 +28,7 @@ import com.eatda.app.util.TtsService
 import com.eatda.app.util.VoiceCommand
 import com.eatda.app.util.VoiceCommandParser
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class VoicePhase {
     IDLE,
@@ -37,11 +38,6 @@ private enum class VoicePhase {
     SPEAKING_AWAIT,  // 삭제 확인 대기 — TTS 끝나면 자동 재청취
 }
 
-/** 이 키워드가 인식되면 음성 오버레이를 닫는다 */
-private val STOP_KEYWORDS = setOf(
-    "끝", "종료", "그만", "닫아", "끝내", "나가", "그만해", "종료해", "닫기", "없애"
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceOverlaySheet(
@@ -50,6 +46,8 @@ fun VoiceOverlaySheet(
     inventory: List<FoodItem>,
     pendingDeleteItem: FoodItem?,
     lastVoiceResponse: String? = null,
+    isAddMode: Boolean = false,            // 재고 추가 모드 여부
+    addedItems: List<FoodItem> = emptyList(), // 이번 세션에 추가된 항목
     onCommand: (VoiceCommand) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -57,10 +55,28 @@ fun VoiceOverlaySheet(
     val sttState   by SttService.state.collectAsStateWithLifecycle()
     val ttsPlaying by TtsService.isPlaying.collectAsStateWithLifecycle()
 
+    // rememberUpdatedState로 LaunchedEffect 클로저가 항상 최신 값을 참조하게 함
+    val currentIsAddMode by rememberUpdatedState(isAddMode)
+
     var heardText    by remember { mutableStateOf("") }
     var phase        by remember { mutableStateOf(VoicePhase.IDLE) }
     var hasMicPerm   by remember { mutableStateOf(false) }
     var hasResponded by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+
+    // 음성 초기 화면으로 복귀 — 로컬 상태 리셋 + STT 재시작
+    fun goBack() {
+        heardText    = ""
+        hasResponded = false
+        onCommand(VoiceCommand.Back)
+        SttService.reset()
+        phase = VoicePhase.LISTENING
+        scope.launch {
+            delay(300)
+            SttService.start(context)
+        }
+    }
 
     // ── 마이크 권한 ──────────────────────────────────────────────────────────
     val permLauncher = rememberLauncherForActivityResult(
@@ -85,16 +101,15 @@ fun VoiceOverlaySheet(
                 val text = s.text.trim()
                 heardText = text
 
-                // 종료 키워드 감지 → 즉시 닫기
-                if (STOP_KEYWORDS.any { text.contains(it) }) {
-                    SttService.stop()
-                    SttService.reset()
-                    onDismiss()
+                phase = VoicePhase.PROCESSING
+                val cmd = VoiceCommandParser.parse(text, inventory.map { it.name }, currentIsAddMode)
+
+                // Back: 음성 초기 화면으로 복귀
+                if (cmd is VoiceCommand.Back) {
+                    goBack()
                     return@LaunchedEffect
                 }
 
-                phase = VoicePhase.PROCESSING
-                val cmd = VoiceCommandParser.parse(text, inventory.map { it.name })
                 onCommand(cmd)
                 hasResponded = true
                 phase = if (cmd is VoiceCommand.DeleteFood) VoicePhase.SPEAKING_AWAIT
@@ -102,12 +117,10 @@ fun VoiceOverlaySheet(
                 SttService.reset()
             }
             is SttService.SttState.Error -> {
-                // reset() 을 먼저 호출하면 sttState 키가 바뀌어 이 코루틴이 취소됨
-                // → reset() 생략하고 start() 내부에서 stop() 처리하도록
                 if (hasMicPerm) {
                     phase = VoicePhase.LISTENING
                     delay(600)
-                    SttService.start(context)   // 내부에서 stop() → 새 recognizer 생성
+                    SttService.start(context)
                 } else {
                     phase = VoicePhase.IDLE
                     SttService.reset()
@@ -124,7 +137,6 @@ fun VoiceOverlaySheet(
             when (phase) {
                 VoicePhase.SPEAKING_AWAIT,
                 VoicePhase.SPEAKING -> {
-                    // TTS 종료 → 바로 재청취 (300ms 후 — 에코 방지)
                     heardText = ""
                     phase     = VoicePhase.LISTENING
                     delay(300)
@@ -154,21 +166,66 @@ fun VoiceOverlaySheet(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
 
-            // 상단 — 레이블 중앙 / 끝내기 버튼 우측 절대 위치
+            // 상단 — 이전 버튼(좌), 레이블(중앙), 끝내기 버튼(우)
             Box(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = when (phase) {
-                        VoicePhase.IDLE           -> if (!hasMicPerm) "마이크 권한 필요" else "잠시만요..."
-                        VoicePhase.LISTENING      -> if (hasResponded) "계속 말씀하세요..." else "듣는 중..."
-                        VoicePhase.PROCESSING     -> "분석 중..."
-                        VoicePhase.SPEAKING,
-                        VoicePhase.SPEAKING_AWAIT -> "응답 중..."
-                    },
-                    fontSize   = 13.sp,
-                    color      = colors.textMuted,
-                    fontWeight = FontWeight.Medium,
-                    modifier   = Modifier.align(Alignment.Center),
-                )
+                // 이전 버튼 — 좌측 (뭔가 말한 뒤 / 추가 모드일 때만 표시)
+                if (hasResponded || isAddMode) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(colors.surfaceAlt)
+                            .border(1.dp, colors.border, RoundedCornerShape(999.dp))
+                            .clickable {
+                                if (currentIsAddMode) {
+                                    onCommand(VoiceCommand.ExitAddMode)
+                                } else {
+                                    goBack()
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                    ) {
+                        Text("이전", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                    }
+                }
+
+                // 중앙 레이블 + 추가 모드 배지
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (isAddMode) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(colors.accent.copy(alpha = 0.13f))
+                                .padding(horizontal = 10.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                "📦 재고 추가 모드",
+                                fontSize   = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color      = colors.accent,
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
+                    }
+                    Text(
+                        text = when (phase) {
+                            VoicePhase.IDLE           -> if (!hasMicPerm) "마이크 권한 필요" else "잠시만요..."
+                            VoicePhase.LISTENING      -> if (isAddMode) "추가할 식재료를 말씀하세요..."
+                            else if (hasResponded) "계속 말씀하세요..." else "듣는 중..."
+                            VoicePhase.PROCESSING     -> "분석 중..."
+                            VoicePhase.SPEAKING,
+                            VoicePhase.SPEAKING_AWAIT -> "응답 중..."
+                        },
+                        fontSize   = 13.sp,
+                        color      = colors.textMuted,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+
+                // 끝내기 버튼 — 우측
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
@@ -182,7 +239,7 @@ fun VoiceOverlaySheet(
                 }
             }
 
-            // 마이크 버튼 — 가운데 정렬
+            // 마이크 버튼
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 MicButton(
                     colors = colors,
@@ -199,6 +256,47 @@ fun VoiceOverlaySheet(
                         }
                     },
                 )
+            }
+
+            // 추가 모드 — 이번 세션에 추가된 항목 목록
+            if (isAddMode && addedItems.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        "추가된 항목 (${addedItems.size}개)",
+                        fontSize   = 11.sp,
+                        color      = colors.textFaint,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    addedItems.forEach { item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text("✅", fontSize = 13.sp)
+                            Text(
+                                item.name,
+                                fontSize   = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color      = colors.text,
+                                modifier   = Modifier.weight(1f),
+                            )
+                            Text(
+                                "${item.qty} · ${item.expiry?.let { "${it.monthValue}/${it.dayOfMonth}" } ?: "-"}",
+                                fontSize = 12.sp,
+                                color    = colors.textMuted,
+                            )
+                        }
+                    }
+                }
             }
 
             // 사용자 말풍선 (오른쪽)
@@ -287,9 +385,15 @@ fun VoiceOverlaySheet(
                 }
             }
 
-            // 힌트 목록 (처음 열었을 때만)
-            if (!hasResponded && heardText.isEmpty() && pendingDeleteItem == null) {
-                VoiceHintList(colors)
+            // 힌트 목록
+            // 추가 모드: heardText/hasResponded 무관하게 즉시 표시 (모드 진입 즉시 힌트 노출)
+            // 일반 모드: 처음 열었을 때만 표시
+            if (pendingDeleteItem == null) {
+                if (isAddMode) {
+                    AddModeHintList(colors)
+                } else if (!hasResponded && heardText.isEmpty()) {
+                    VoiceHintList(colors)
+                }
             }
         }
     }
@@ -338,7 +442,7 @@ private fun MicButton(colors: EatdaColors, phase: VoicePhase, onClick: () -> Uni
     }
 }
 
-// ── 힌트 목록 ─────────────────────────────────────────────────────────────────
+// ── 일반 힌트 목록 ────────────────────────────────────────────────────────────
 
 @Composable
 private fun VoiceHintList(colors: EatdaColors) {
@@ -354,25 +458,58 @@ private fun VoiceHintList(colors: EatdaColors) {
             modifier   = Modifier.padding(bottom = 2.dp),
         )
         listOf(
+            "재고 추가 모드 열어줘",
             "유통기한 N일 남은 거 있어?",
             "우유 유통기한 언제야?",
             "냉장고에 계란 있어?",
             "두부 삭제해줘",
             "끝  (종료)",
         ).forEach { hint ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(colors.surface)
-                    .border(1.dp, colors.border, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("🎤", fontSize = 13.sp)
-                Text(hint, fontSize = 12.sp, color = colors.textMuted)
-            }
+            HintRow(hint, colors)
         }
+    }
+}
+
+// ── 추가 모드 힌트 목록 ───────────────────────────────────────────────────────
+
+@Composable
+private fun AddModeHintList(colors: EatdaColors) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            "이렇게 말해보세요",
+            fontSize   = 11.sp,
+            color      = colors.textFaint,
+            fontWeight = FontWeight.SemiBold,
+            modifier   = Modifier.padding(bottom = 2.dp),
+        )
+        listOf(
+            "사과 1개",
+            "우유 2개 12월 5일",
+            "두부 3개 26년 1월 20일",
+            "이전  (이전 화면으로)",
+            "끝  (추가 모드 종료)",
+        ).forEach { hint ->
+            HintRow(hint, colors)
+        }
+    }
+}
+
+@Composable
+private fun HintRow(hint: String, colors: EatdaColors) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("🎤", fontSize = 13.sp)
+        Text(hint, fontSize = 12.sp, color = colors.textMuted)
     }
 }
