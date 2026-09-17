@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.eatda.app.R
 import com.eatda.app.data.*
 import com.eatda.app.data.model.*
 import com.eatda.app.ui.components.*
@@ -46,7 +48,7 @@ fun HomeScreen(
     onGoNotif: () -> Unit,
     onGoRecipes: () -> Unit,
     onGoInv: () -> Unit,
-    onOpenVoice: () -> Unit = {},           // ← 음성 어시스턴트 진입
+    onOpenVoice: () -> Unit = {},
     marketArrivals: List<FoodItem> = emptyList(),
     onDismissMarket: () -> Unit = {},
     onConfirmMarket: () -> Unit = {},
@@ -192,14 +194,15 @@ private fun FullHomeScreen(
         modifier = Modifier.fillMaxSize().background(colors.bg),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
     ) {
+
         // ── 인사말 + 제목 ─────────────────────────────────────────────────────
         item {
-            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 14.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
                 Row(
                     verticalAlignment    = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text("좋은 저녁이에요", fontSize = 13.sp, color = colors.textMuted, fontWeight = FontWeight.Medium)
+                    Text("안녕하세요", fontSize = 13.sp, color = colors.textMuted, fontWeight = FontWeight.Medium)
                     Text("👋", fontSize = 14.sp)
                 }
                 Spacer(Modifier.height(4.dp))
