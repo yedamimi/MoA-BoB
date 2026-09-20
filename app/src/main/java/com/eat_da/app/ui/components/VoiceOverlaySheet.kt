@@ -45,6 +45,7 @@ fun VoiceOverlaySheet(
     sheetState: SheetState,
     inventory: List<FoodItem>,
     pendingDeleteItem: FoodItem?,
+    pendingDeleteQty: Int? = null,
     lastVoiceResponse: String? = null,
     isAddMode: Boolean = false,            // 재고 추가 모드 여부
     addedItems: List<FoodItem> = emptyList(), // 이번 세션에 추가된 항목
@@ -356,35 +357,48 @@ fun VoiceOverlaySheet(
             }
 
             // 삭제 확인 카드
+            // 삭제 확인 카드
             pendingDeleteItem?.let { item ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(colors.dangerSoft)
-                        .border(1.dp, colors.danger.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                        .border(
+                            1.dp,
+                            colors.danger.copy(alpha = 0.3f),
+                            RoundedCornerShape(14.dp)
+                        )
                         .padding(14.dp),
-                    verticalAlignment     = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(foodEmoji[item.name] ?: "🍽️", fontSize = 28.sp)
+                    Text(
+                        foodEmoji[item.name] ?: "🍽️",
+                        fontSize = 28.sp
+                    )
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "${item.name} 삭제할까요?",
-                            fontSize   = 14.sp,
+                            if (pendingDeleteQty != null) {
+                                "${item.name} ${pendingDeleteQty}개 삭제할까요?"
+                            } else {
+                                "${item.name} 삭제할까요?"
+                            },
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color      = colors.danger,
+                            color = colors.danger,
                         )
+
                         Text(
                             "\"응\" 또는 \"아니\" 라고 말하세요",
                             fontSize = 11.sp,
-                            color    = colors.textMuted,
+                            color = colors.textMuted,
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
                 }
             }
-
             // 힌트 목록
             // 추가 모드: heardText/hasResponded 무관하게 즉시 표시 (모드 진입 즉시 힌트 노출)
             // 일반 모드: 처음 열었을 때만 표시

@@ -89,6 +89,7 @@ data class AppState(
     val lastVoiceResponse: String? = null,
     val marketArrivals: List<FoodItem> = emptyList(),
     val pendingDeleteItem: FoodItem? = null,
+    val pendingDeleteQty: Int? = null,
     val household: Household? = null,
     val householdMembers: List<HouseholdMember> = emptyList(),
     val myUserId: String = "",
@@ -105,8 +106,155 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val rootDb = Firebase.database.reference
     private val db     = Firebase.database.reference.child("eatda")
+
+    // ⭐ 실제 식재료 재고
+    private val foodInventoryDb =
+        Firebase.database.reference.child("MoA-BoB").child("foodInventory")
+
     private val ctx    get() = getApplication<Application>()
 
+    // ── Firebase Inventory 저장 ───────────────────────────────────────────
+
+    /**
+     * FoodItem 하나를 Firebase의 eatda/inventory에 저장
+     */
+    /**
+     * 식품명을 Firebase inventory의 고정 key로 변환
+     */
+    private fun getInventoryKey(name: String): String {
+        return when {
+            name.contains("우유") -> "milk"
+            name.contains("바나나") -> "banana"
+            name.contains("사과") -> "apple"
+            name.contains("오이") -> "cucumber"
+            name.contains("양파") -> "onion"
+            name.contains("애호박") -> "zucchini"
+            name.contains("브로콜리") -> "broccoli"
+            name.contains("딸기") -> "strawberry"
+            name.contains("계란") -> "egg"
+            name.contains("두부") -> "tofu"
+
+            else -> name.trim()
+                .lowercase()
+                .replace(" ", "_")
+        }
+    }
+
+    /**
+     * Firebase inventory에 표시할 대표 식품명으로 변환
+     */
+    private fun getInventoryName(name: String): String {
+        return when {
+            name.contains("우유") -> "우유"
+            name.contains("바나나") -> "바나나"
+            name.contains("사과") -> "사과"
+            name.contains("오이") -> "오이"
+            name.contains("양파") -> "양파"
+            name.contains("애호박") -> "애호박"
+            name.contains("브로콜리") -> "브로콜리"
+            name.contains("딸기") -> "딸기"
+            name.contains("계란") -> "계란"
+            name.contains("두부") -> "두부"
+
+            else -> name.trim()
+        }
+    }
+
+    /**
+     * FoodItem의 qty(String)를 숫자로 변환
+     *
+     * 예:
+     * "1개"  -> 1
+     * "2개"  -> 2
+     * "10개" -> 10
+     */
+    private fun parseQuantity(qty: String): Int {
+        return Regex("""\d+""")
+            .find(qty)
+            ?.value
+            ?.toIntOrNull()
+            ?: 1
+    }
+
+    /**
+     * FoodItem 하나를 Firebase의 MoA-BoB/foodInventory에 저장
+     *
+     * 식품 하나당 Firebase 항목 하나를 사용하며,
+     * 기존 식품이 있으면 수량을 합산하고
+     * 소비기한은 더 빠른 날짜를 유지한다.
+     */
+    private fun saveInventoryItem(item: FoodItem) {
+
+        val inventoryRef = foodInventoryDb
+            .child(item.name)
+
+        inventoryRef.get().addOnSuccessListener { snapshot ->
+
+            if (snapshot.exists()) {
+
+                // 기존 수량
+                val currentQtyText =
+                    snapshot.child("qty")
+                        .getValue(String::class.java)
+                        ?: "0개"
+
+                val currentQty = parseQuantity(currentQtyText)
+                val newQty = currentQty + parseQuantity(item.qty)
+
+                // 기존 소비기한
+                val currentExpiry =
+                    snapshot.child("expiry")
+                        .getValue(String::class.java)
+                        ?.let {
+                            runCatching {
+                                LocalDate.parse(it)
+                            }.getOrNull()
+                        }
+
+                // 더 빠른 소비기한 유지
+                val newExpiry =
+                    if (currentExpiry != null) {
+                        minOf(currentExpiry, item.expiry)
+                    } else {
+                        item.expiry
+                    }
+
+                val updates = mapOf(
+                    "qty" to "${newQty}개",
+                    "expiry" to newExpiry.toString()
+                )
+
+                inventoryRef.updateChildren(updates)
+
+            } else {
+
+                // 새로운 식품
+                val data = mapOf(
+                    "name" to item.name,
+                    "category" to item.category.name,
+                    "expiry" to item.expiry.toString(),
+                    "qty" to item.qty,
+                    "freshness" to item.freshness,
+                    "location" to item.location,
+                    "addedDays" to item.addedDays,
+                    "isAllergen" to item.isAllergen,
+                    "source" to "app",
+                    "addedAt" to LocalDate.now().toString(),
+                    "fromShop" to false
+                )
+
+                inventoryRef.setValue(data)
+            }
+        }
+    }
+    /**
+     * FoodItem을 Firebase의 MoA-BoB/foodInventory에서 삭제
+     */
+    private fun deleteInventoryItem(item: FoodItem) {
+        foodInventoryDb
+            .child(item.name)
+            .removeValue()
+    }
     private var inventoryListener:       ValueEventListener? = null
     private var scanResultsListener:     ValueEventListener? = null
     private var scanStatusListener:      ValueEventListener? = null
@@ -142,50 +290,49 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun listenToInventory() {
         inventoryListener = object : ValueEventListener {
+
             override fun onDataChange(snapshot: DataSnapshot) {
-                val stockItems = snapshot.children.mapNotNull { stock ->
-                    val count = stock.getValue(Int::class.java) ?: 0
-                    if (count <= 0) return@mapNotNull null
 
-                    val (displayName, category) = when (stock.key) {
-                        "oi"        -> Pair("오이",    FoodCategory.VEGETABLE)
-                        "apple"     -> Pair("사과",    FoodCategory.FRUIT)
-                        "banana"    -> Pair("바나나",  FoodCategory.FRUIT)
-                        "orange"    -> Pair("오렌지",  FoodCategory.FRUIT)
-                        "broccoli"  -> Pair("브로콜리", FoodCategory.VEGETABLE)
-                        "carrot"    -> Pair("당근",    FoodCategory.VEGETABLE)
-                        "sandwich"  -> Pair("샌드위치", FoodCategory.GRAIN)
-                        "pizza"     -> Pair("피자",    FoodCategory.GRAIN)
-                        "donut"     -> Pair("도넛",    FoodCategory.GRAIN)
-                        "cake"      -> Pair("케이크",  FoodCategory.GRAIN)
-                        "hot dog"   -> Pair("핫도그",  FoodCategory.GRAIN)
-                        "tofu"      -> Pair("두부",    FoodCategory.GRAIN)
-                        else        -> Pair(stock.key ?: "", FoodCategory.GRAIN)
-                    }
-
-                    FoodItem(
-                        id        = stock.key?.hashCode() ?: 0,
-                        name      = displayName,
-                        category  = category,
-                        expiry    = LocalDate.now().plusDays(7),
-                        qty       = "${count}개",
-                        location  = "냉장고",
-                        addedDays = 0,
-                        isAllergen = false,
-                    )
+                // MoA-BoB/foodInventory의 각 자식이 FoodItem 하나
+                val inventoryItems = snapshot.children.mapNotNull { itemSnapshot ->
+                    parseInventoryItem(itemSnapshot)
                 }
 
-                val webcam   = _state.value.webcamItems
-                val combined = stockItems + webcam.filter { w -> stockItems.none { it.name == w.name } }
-                val notifs   = buildNotifications(combined, _state.value.settings, _state.value.allergens)
-                _state.update { it.copy(inventory = combined, notifications = notifs, firebaseConnected = true) }
+                // 웹캠에서 현재 인식된 식재료
+                val webcam = _state.value.webcamItems
+
+                // Firebase 재고 + 웹캠 재고
+                val combined =
+                    inventoryItems +
+                            webcam.filter { w ->
+                                inventoryItems.none { it.name == w.name }
+                            }
+
+                // 유통기한 등에 따른 알림 생성
+                val notifs = buildNotifications(
+                    combined,
+                    _state.value.settings,
+                    _state.value.allergens
+                )
+
+                _state.update {
+                    it.copy(
+                        inventory = combined,
+                        notifications = notifs,
+                        firebaseConnected = true
+                    )
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {
-                _state.update { it.copy(firebaseConnected = false) }
+                _state.update {
+                    it.copy(firebaseConnected = false)
+                }
             }
         }
-        Firebase.database.reference.child("stocks").addValueEventListener(inventoryListener!!)
+
+        // ⭐ 새 재고 저장소
+        foodInventoryDb.addValueEventListener(inventoryListener!!)
     }
 
     private fun listenToScanResults() {
@@ -282,7 +429,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val current = snapshot.getValue(Int::class.java) ?: 0
             stockRef.setValue(current + count)
         }
-        _state.update { it.copy(toast = "${item.name} 냉장고에 추가됐어요 🧊") }
     }
 
     private fun addWebcamItem(item: FoodItem) {
@@ -522,6 +668,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateItemExpiry(itemId: Int, newExpiry: String) {
         val newDate = LocalDate.parse(newExpiry)
+
+        // 현재 재고에서 해당 FoodItem 찾기
+        val item = _state.value.inventory.firstOrNull { it.id == itemId }
+            ?: return
+
+        // ⭐ MoA-BoB/foodInventory의 유통기한 수정
+        foodInventoryDb
+            .child(item.name)
+            .child("expiry")
+            .setValue(newDate.toString())
+
+        // 앱 화면의 상태도 즉시 변경
         _state.update { s ->
             s.copy(
                 inventory = s.inventory.map { item ->
@@ -534,8 +692,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
-
     fun updateItemQty(itemId: Int, newQty: String) {
+        // 현재 재고에서 해당 FoodItem 찾기
+        val item = _state.value.inventory.firstOrNull { it.id == itemId }
+            ?: return
+
+        // ⭐ MoA-BoB/foodInventory의 해당 식품 수량 수정
+        foodInventoryDb
+            .child(item.name)
+            .child("qty")
+            .setValue(newQty)
+
+        // 앱 화면의 상태도 즉시 변경
         _state.update { s ->
             s.copy(
                 inventory = s.inventory.map { item ->
@@ -548,7 +716,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
-
     // ── 음성 명령 처리 ────────────────────────────────────────────────────────
 
     fun handleVoiceCommand(command: VoiceCommand) {
@@ -580,14 +747,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             // ── 음성으로 재고 여러 개 한 번에 추가 ───────────────────────────
             is VoiceCommand.AddFoods -> {
+
                 val newItems = command.items.map { cmd ->
+
                     val expiry = if (cmd.expiry != null) {
                         runCatching { LocalDate.parse(cmd.expiry) }.getOrNull()
                             ?: LocalDate.now().plusDays(7)
                     } else {
-                        LocalDate.now().plusDays(DEFAULT_SHELF_DAYS[cmd.name] ?: 7L)
+                        LocalDate.now().plusDays(
+                            DEFAULT_SHELF_DAYS[cmd.name] ?: 7L
+                        )
                     }
-                    FoodItem(
+
+                    val newItem = FoodItem(
                         id         = (System.currentTimeMillis() + cmd.name.hashCode()).toInt(),
                         name       = cmd.name,
                         qty        = cmd.qty,
@@ -597,19 +769,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         addedDays  = 0,
                         isAllergen = false,
                     )
+
+                    // ⭐ Firebase inventory에 저장
+                    saveInventoryItem(newItem)
+
+                    // map에서 이 FoodItem을 반환
+                    newItem
                 }
+
                 val newInventory  = _state.value.inventory + newItems
                 val newAddedItems = _state.value.addedItems + newItems
-                val notifs        = buildNotifications(newInventory, _state.value.settings, _state.value.allergens)
-                val names         = newItems.joinToString(", ") { "${it.name} ${it.qty}" }
-                val msg           = "${names} 추가됐어요."
-                _state.update { s -> s.copy(
-                    inventory         = newInventory,
-                    addedItems        = newAddedItems,
-                    notifications     = notifs,
-                    pendingTts        = msg,
-                    lastVoiceResponse = msg,
-                )}
+
+                val notifs = buildNotifications(
+                    newInventory,
+                    _state.value.settings,
+                    _state.value.allergens
+                )
+
+                val names = newItems.joinToString(", ") {
+                    "${it.name} ${it.qty}"
+                }
+
+                val msg = "${names} 추가됐어요."
+
+                _state.update { s ->
+                    s.copy(
+                        inventory         = newInventory,
+                        addedItems        = newAddedItems,
+                        notifications     = notifs,
+                        pendingTts        = msg,
+                        lastVoiceResponse = msg,
+                    )
+                }
             }
 
             // ── 음성으로 재고 추가 ────────────────────────────────────────────
@@ -633,6 +824,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     addedDays = 0,
                     isAllergen = false,
                 )
+
+                // ⭐ Firebase inventory에 저장
+                saveInventoryItem(newItem)
 
                 val newAddedItems = _state.value.addedItems + newItem
                 val newInventory  = _state.value.inventory + newItem
@@ -712,28 +906,113 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             is VoiceCommand.DeleteFood -> {
                 val item = inv.firstOrNull { it.name == command.foodName }
+
                 if (item != null) {
-                    val msg = "${item.name}을 삭제할까요?"
-                    _state.update { it.copy(pendingDeleteItem = item, pendingTts = msg, lastVoiceResponse = msg) }
+                    val msg = if (command.qty != null) {
+                        "${item.name} ${command.qty}개를 삭제할까요?"
+                    } else {
+                        "${item.name}을 삭제할까요?"
+                    }
+
+                    _state.update {
+                        it.copy(
+                            pendingDeleteItem = item,
+                            pendingDeleteQty = command.qty,
+                            pendingTts = msg,
+                            lastVoiceResponse = msg
+                        )
+                    }
                 } else {
                     val msg = "${command.foodName}은 냉장고에 없습니다."
-                    _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
+                    _state.update {
+                        it.copy(
+                            pendingTts = msg,
+                            lastVoiceResponse = msg
+                        )
+                    }
                 }
             }
-
             VoiceCommand.Confirm -> {
-                val item = _state.value.pendingDeleteItem ?: return
-                val msg = "${item.name}을 삭제했습니다."
-                _state.update { s -> s.copy(
-                    inventory         = s.inventory.filter { it.id != item.id },
-                    webcamItems       = s.webcamItems.filter { it.id != item.id },
-                    pendingDeleteItem  = null,
-                    pendingTts        = msg,
-                    lastVoiceResponse = msg,
-                    toast             = "${item.name} 삭제됨 🗑️",
-                )}
-            }
+                val state = _state.value
+                val item = state.pendingDeleteItem ?: return
+                val deleteQty = state.pendingDeleteQty
 
+                // 현재 재고 수량 숫자로 변환
+                val currentQty = item.qty
+                    .filter { it.isDigit() }
+                    .toIntOrNull() ?: 1
+
+                // 수량을 지정하지 않았으면 전체 삭제
+                if (deleteQty == null) {
+                    deleteInventoryItem(item)
+
+                    val msg = "${item.name}을 삭제했습니다."
+
+                    _state.update { s ->
+                        s.copy(
+                            inventory = s.inventory.filter { it.id != item.id },
+                            webcamItems = s.webcamItems.filter { it.id != item.id },
+                            pendingDeleteItem = null,
+                            pendingDeleteQty = null,
+                            pendingTts = msg,
+                            lastVoiceResponse = msg,
+                            toast = "${item.name} 삭제됨 🗑️",
+                        )
+                    }
+
+                    return
+                }
+
+                // 삭제 후 남는 수량 계산
+                val remainingQty = currentQty - deleteQty
+
+                if (remainingQty <= 0) {
+                    // 전부 삭제되는 경우 → Firebase 항목 자체 삭제
+                    deleteInventoryItem(item)
+
+                    val msg = "${item.name} ${currentQty}개를 삭제했습니다."
+
+                    _state.update { s ->
+                        s.copy(
+                            inventory = s.inventory.filter { it.id != item.id },
+                            webcamItems = s.webcamItems.filter { it.id != item.id },
+                            pendingDeleteItem = null,
+                            pendingDeleteQty = null,
+                            pendingTts = msg,
+                            lastVoiceResponse = msg,
+                            toast = "${item.name} 삭제됨 🗑️",
+                        )
+                    }
+                } else {
+                    // 일부만 삭제 → 남은 수량으로 Firebase 업데이트
+                    val newQty = "${remainingQty}개"
+
+                    foodInventoryDb
+                        .child(item.name)
+                        .child("qty")
+                        .setValue(newQty)
+
+                    val updatedItem = item.copy(qty = newQty)
+
+                    val msg = "${item.name} ${deleteQty}개를 삭제했습니다. ${remainingQty}개 남았습니다."
+
+                    _state.update { s ->
+                        s.copy(
+                            inventory = s.inventory.map {
+                                if (it.id == item.id) updatedItem else it
+                            },
+                            webcamItems = s.webcamItems.map {
+                                if (it.id == item.id) updatedItem else it
+                            },
+                            pendingDeleteItem = null,
+                            pendingDeleteQty = null,
+                            pendingTts = msg,
+                            lastVoiceResponse = msg,
+                            toast = "${item.name} ${deleteQty}개 삭제됨",
+                        )
+                    }
+                }
+            }
             VoiceCommand.Cancel -> {
                 val msg = "취소했습니다."
                 _state.update { it.copy(pendingDeleteItem = null, pendingTts = msg, lastVoiceResponse = msg) }

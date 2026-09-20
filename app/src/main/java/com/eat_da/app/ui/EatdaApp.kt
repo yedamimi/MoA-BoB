@@ -195,6 +195,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 sheetState         = voiceSheetState,
                 inventory          = state.inventory,
                 pendingDeleteItem  = state.pendingDeleteItem,
+                pendingDeleteQty = state.pendingDeleteQty,
                 lastVoiceResponse  = state.lastVoiceResponse,
                 isAddMode          = state.isAddMode,
                 addedItems         = state.addedItems,

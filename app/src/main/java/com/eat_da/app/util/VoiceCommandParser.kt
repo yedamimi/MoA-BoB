@@ -9,7 +9,10 @@ sealed class VoiceCommand {
     /** "유통기한 하루 남은 거 있어?" — days=1,2,3,7 등 */
     data class ExpiringSoon(val days: Int = 3)   : VoiceCommand()
     /** "우유 삭제해줘" */
-    data class DeleteFood(val foodName: String)  : VoiceCommand()
+    data class DeleteFood(
+        val foodName: String,
+        val qty: Int? = null
+    ) : VoiceCommand()
     /** "재고 추가 모드 열어줘" → 추가 모드 진입 */
     object EnterAddMode                          : VoiceCommand()
     /** 추가 모드에서 "끝" / "이전으로" → 추가 모드 종료 */
@@ -135,6 +138,14 @@ object VoiceCommandParser {
             return VoiceCommand.AddFoods(items)
         }
 
+        val normalizedText = normalizeNumbers(t)
+
+        val deleteQty = Regex("""(\d+)\s*개""")
+            .find(normalizedText)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+
         // ── 일반 모드 오버레이 닫기 ("끝", "이전", "이전으로" 등) ──────────────
         if (STOP_KEYWORDS.any { t.contains(it) }) return VoiceCommand.Back
 
@@ -178,7 +189,9 @@ object VoiceCommandParser {
         if (foodName != null) {
             if (expiryWords.any { it in t }) return VoiceCommand.ExpiryQuery(foodName)
             if (searchWords.any { it in t }) return VoiceCommand.SearchFood(foodName)
-            if (deleteWords.any { it in t }) return VoiceCommand.DeleteFood(foodName)
+            if (deleteWords.any { it in t }) {
+                return VoiceCommand.DeleteFood(foodName, deleteQty)
+            }
         }
 
         // ── 재고에 없어도 질문 패턴이면 식품명 추출 후 응답 ─────────────────
@@ -187,7 +200,9 @@ object VoiceCommandParser {
         if (guessedName != null) {
             if (expiryWords.any { it in t }) return VoiceCommand.ExpiryQuery(guessedName)
             if (searchWords.any { it in t }) return VoiceCommand.SearchFood(guessedName)
-            if (deleteWords.any { it in t }) return VoiceCommand.DeleteFood(guessedName)
+            if (deleteWords.any { it in t }) {
+                return VoiceCommand.DeleteFood(guessedName, deleteQty)
+            }
         }
 
         return VoiceCommand.Unknown(t)

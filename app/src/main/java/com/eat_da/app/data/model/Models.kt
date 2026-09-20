@@ -24,10 +24,10 @@ data class FoodItem(
     val addedDays: Int,
     val isAllergen: Boolean = false,
 ) {
-    fun daysLeft(today: LocalDate = LocalDate.of(2026, 5, 6)): Int =
+    fun daysLeft(today: LocalDate = LocalDate.now()): Int =
         (expiry.toEpochDay() - today.toEpochDay()).toInt()
 
-    fun expiryStatus(today: LocalDate = LocalDate.of(2026, 5, 6)): ExpiryStatus {
+    fun expiryStatus(today: LocalDate = LocalDate.now()): ExpiryStatus {
         val d = daysLeft(today)
         return when {
             d < 0 -> ExpiryStatus.EXPIRED
@@ -38,7 +38,7 @@ data class FoodItem(
         }
     }
 
-    fun formatExpiry(today: LocalDate = LocalDate.of(2026, 5, 6)): String {
+    fun formatExpiry(today: LocalDate = LocalDate.now()): String {
         val d = daysLeft(today)
         return when {
             d < 0 -> "${-d}일 경과"

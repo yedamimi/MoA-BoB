@@ -599,9 +599,10 @@
       var it=order[idx];
       var exp=new Date(today.getTime());
       exp.setDate(today.getDate()+it.shelfDays);
+
+
       var item={
         name:it.short||it.name,
-        productName:it.name,
         category:it.category.toUpperCase(),
         expiry:fmtDate(exp),
         qty:it.qty+'개',
@@ -613,26 +614,45 @@
         freshness:98,
         fromShop:true
       };
-      fetch(FIREBASE_DB_URL+'/eatda/inventory.json',{
-        method:'POST',
+
+            fetch(FIREBASE_DB_URL+'/MoA-BoB/foodInventory/' + encodeURIComponent(item.name) + '.json',{
+        method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(item)
       })
-      .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-      .then(function(){writeNext(idx+1);})
-      .catch(function(e){done(false,e);});
+      .then(function(r){
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        return r.json();
+      })
+      .then(function(){
+        writeNext(idx+1);
+      })
+      .catch(function(e){
+        done(false,e);
+      });
     }
 
     function done(success,error){
       setTimeout(function(){
         document.getElementById('link-ov').className='overlay hidden';
-        btn.disabled=false;stage='browse';
-        if(success){order=[];showToast('모아밥 재고에 연동됐어요');}
-        else{showToast('연동에 실패했어요. 다시 시도해 주세요');console.error(error);}
+        btn.disabled=false;
+        stage='browse';
+
+        if(success){
+          order=[];
+          showToast('모아밥 재고에 연동됐어요');
+        } else {
+          showToast('연동에 실패했어요. 다시 시도해 주세요');
+          console.error(error);
+        }
       },300);
     }
 
-    if(!order.length){done(false,new Error('주문 상품이 없습니다.'));return;}
+    if(!order.length){
+      done(false,new Error('주문 상품이 없습니다.'));
+      return;
+    }
+
     writeNext(0);
   }
 
