@@ -1,5 +1,6 @@
 package com.eatda.app.ui.screens
 
+import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -127,12 +128,11 @@ private fun NoHouseholdContent(
     onCreate: (name: String, myName: String) -> Unit,
     onJoin: (code: String, myName: String) -> Unit,
 ) {
-    var mode    by remember { mutableStateOf<String?>(null) }   // "create" | "join"
+    var mode    by remember { mutableStateOf<String?>(null) }
     var myName  by remember { mutableStateOf(savedName) }
-    var input   by remember { mutableStateOf("") }              // 그룹명 or 초대코드
+    var input   by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
 
-    // 소개 카드
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -156,7 +156,6 @@ private fun NoHouseholdContent(
 
     Spacer(Modifier.height(20.dp))
 
-    // 이름 입력 (공통)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("내 이름", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.textMuted, modifier = Modifier.padding(start = 4.dp))
         OutlinedTextField(
@@ -178,7 +177,6 @@ private fun NoHouseholdContent(
 
     Spacer(Modifier.height(14.dp))
 
-    // 탭 선택: 새로 만들기 / 코드 입력
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -264,6 +262,7 @@ private fun NoHouseholdContent(
 
 @Composable
 private fun HouseholdInfoCard(colors: EatdaColors, household: Household) {
+    val context    = LocalContext.current
     var codeCopied by remember { mutableStateOf(false) }
 
     Column(
@@ -304,10 +303,10 @@ private fun HouseholdInfoCard(colors: EatdaColors, household: Household) {
             ) {
                 Text(
                     household.inviteCode.chunked(3).joinToString(" – "),
-                    fontSize   = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontSize      = 20.sp,
+                    fontWeight    = FontWeight.ExtraBold,
                     letterSpacing = 2.sp,
-                    color      = colors.accent,
+                    color         = colors.accent,
                 )
                 Box(
                     modifier = Modifier
@@ -325,6 +324,27 @@ private fun HouseholdInfoCard(colors: EatdaColors, household: Household) {
                 }
             }
             Text("이 코드를 공유하면 구성원을 초대할 수 있어요", fontSize = 11.sp, color = colors.textFaint)
+
+            // 공유 버튼
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colors.accent)
+                    .clickable {
+                        val shareText = "[모아밥] 공동 냉장고 초대\n냉장고: ${household.name}\n초대 코드: ${household.inviteCode}"
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, shareText)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "초대 코드 공유"))
+                    }
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalAlignment    = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text("초대 코드 공유하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
     }
 }

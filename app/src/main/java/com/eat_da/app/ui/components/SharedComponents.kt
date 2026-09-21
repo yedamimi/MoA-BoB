@@ -1,5 +1,6 @@
 package com.eatda.app.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -22,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eatda.app.R
 import com.eatda.app.ui.theme.*
 import com.eatda.app.viewmodel.Screen
 
@@ -89,11 +93,19 @@ fun EatdaTopBar(
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 로고 이미지
                 Box(
-                    modifier = Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(colors.accentSoft),
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    EatdaLogoMark(color = colors.accent, size = 20.dp)
+                    Image(
+                        painter = painterResource(id = R.drawable.logo),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                    )
                 }
                 Text("모아밥", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
             }

@@ -11,6 +11,8 @@ googleServices = "4.4.2"
 mlkitImageLabeling = "17.0.7"
 mlkitTextRecognition = "16.0.1"
 coil = "3.3.0"
+camerax     = "1.4.0"
+tfliteSupport = "0.4.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,6 +34,11 @@ mlkit-ocr = { group = "com.google.mlkit", name = "text-recognition", version.ref
 mlkit-ocr-korean = { group = "com.google.mlkit", name = "text-recognition-korean", version.ref = "mlkitTextRecognition" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+camera-core     = { group = "androidx.camera", name = "camera-core",      version.ref = "camerax" }
+camera-camera2  = { group = "androidx.camera", name = "camera-camera2",   version.ref = "camerax" }
+camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+camera-view     = { group = "androidx.camera", name = "camera-view",      version.ref = "camerax" }
+tflite-task-vision = { group = "org.tensorflow", name = "tensorflow-lite-task-vision", version.ref = "tfliteSupport" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
