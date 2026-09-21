@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.eatda.app.R
 import com.eatda.app.data.*
 import com.eatda.app.data.model.*
 import com.eatda.app.ui.components.*
@@ -34,6 +36,7 @@ import com.eatda.app.util.VisionService
 import kotlinx.coroutines.launch
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.FlowRow
 
 @Composable
 fun HomeScreen(
@@ -45,8 +48,9 @@ fun HomeScreen(
     onOpenItem: (FoodItem) -> Unit,
     onGoNotif: () -> Unit,
     onGoRecipes: () -> Unit,
+    onOpenRecipe: (Recipe) -> Unit,
     onGoInv: () -> Unit,
-    onOpenVoice: () -> Unit = {},           // ← 음성 어시스턴트 진입
+    onOpenVoice: () -> Unit = {},
     marketArrivals: List<FoodItem> = emptyList(),
     onDismissMarket: () -> Unit = {},
     onConfirmMarket: () -> Unit = {},
@@ -58,7 +62,7 @@ fun HomeScreen(
     } else {
         FullHomeScreen(
             colors, sizes, inventory, recipes, criticalItems, onOpenItem,
-            onGoNotif, onGoRecipes, onGoInv, onOpenVoice,
+            onGoNotif, onGoRecipes, onOpenRecipe, onGoInv, onOpenVoice,
             marketArrivals, onDismissMarket, onConfirmMarket,
         )
     }
@@ -161,6 +165,7 @@ private fun FullHomeScreen(
     onOpenItem: (FoodItem) -> Unit,
     onGoNotif: () -> Unit,
     onGoRecipes: () -> Unit,
+    onOpenRecipe: (Recipe) -> Unit,
     onGoInv: () -> Unit,
     onOpenVoice: () -> Unit = {},
     marketArrivals: List<FoodItem> = emptyList(),
@@ -192,14 +197,15 @@ private fun FullHomeScreen(
         modifier = Modifier.fillMaxSize().background(colors.bg),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
     ) {
+
         // ── 인사말 + 제목 ─────────────────────────────────────────────────────
         item {
-            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 14.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
                 Row(
                     verticalAlignment    = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text("좋은 저녁이에요", fontSize = 13.sp, color = colors.textMuted, fontWeight = FontWeight.Medium)
+                    Text("안녕하세요", fontSize = 13.sp, color = colors.textMuted, fontWeight = FontWeight.Medium)
                     Text("👋", fontSize = 14.sp)
                 }
                 Spacer(Modifier.height(4.dp))
@@ -252,7 +258,13 @@ private fun FullHomeScreen(
                 inventory = inventory
             )
             recommended.firstOrNull()?.let { recipe ->
-                RecipeHero(colors, recipe, onClick = onGoRecipes)
+                RecipeHero(
+                    colors = colors,
+                    recipe = recipe,
+                    onClick = {
+                        onOpenRecipe(recipe)
+                    }
+                )
             }
         }
 
@@ -423,22 +435,45 @@ private fun RecipeHero(colors: EatdaColors, recipe: Recipe, onClick: () -> Unit)
                 Text(recipe.priority ?: recipe.tag, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = colors.accent)
             }
         }
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text("${recipe.minutes}분 · 보유 재료 ${recipe.ingredients.size}개", fontSize = 11.sp, color = colors.textMuted, modifier = Modifier.padding(top = 3.dp))
-            Text(recipe.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.text)
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Text(
+                "${recipe.minutes}분 · 보유 재료 ${recipe.ingredients.size}개",
+                fontSize = 11.sp,
+                color = colors.textMuted,
+            )
+
+            Text(
+                recipe.title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.text,
+                maxLines = 2,
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                maxLines = 2,
+            ) {
                 recipe.ingredients.forEach { ing ->
-                    Box(
+                    Text(
+                        text = ing,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.accentDeep,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(colors.surfaceAlt)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    ) {
-                        Text(ing, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = colors.textMuted)
-                    }
+                            .background(
+                                colors.accentSoft,
+                                RoundedCornerShape(999.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
             }
+
         }
     }
 }

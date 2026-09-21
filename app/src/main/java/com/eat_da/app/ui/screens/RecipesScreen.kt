@@ -300,7 +300,15 @@ fun RecipesScreen(
                     Spacer(Modifier.height(4.dp))
 
                     Text(
-                        "유통기한 임박 ${expiringItems.size}개로 만들 수 있는 메뉴",
+                        when (selectedCategory.value) {
+                            0 -> "냉장고 재료를 활용해 만들 수 있는 추천 메뉴예요"
+                            1 -> "냉장고에 있는 재료만으로 만들 수 있어요"
+                            2 -> "냉장고 재료를 4개 이상 활용할 수 있어요"
+                            3 -> "냉장고 재료 3개를 활용할 수 있어요"
+                            4 -> "냉장고 재료 2개를 활용할 수 있어요"
+                            5 -> "냉장고 재료 1개를 활용할 수 있어요"
+                            else -> "냉장고 재료를 활용해 만들 수 있는 추천 메뉴예요"
+                        },
                         fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.85f)
                     )

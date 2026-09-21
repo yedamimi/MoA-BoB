@@ -195,7 +195,10 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 sheetState         = voiceSheetState,
                 inventory          = state.inventory,
                 pendingDeleteItem  = state.pendingDeleteItem,
+                pendingDeleteQty = state.pendingDeleteQty,
                 lastVoiceResponse  = state.lastVoiceResponse,
+                isAddMode          = state.isAddMode,
+                addedItems         = state.addedItems,
                 onCommand          = vm::handleVoiceCommand,
                 onDismiss          = vm::closeVoice,
             )
@@ -238,6 +241,7 @@ private fun AppScreenContent(
                     onOpenItem     = vm::openItem,
                     onGoNotif      = { vm.navigate(Screen.NOTIFICATIONS) },
                     onGoRecipes    = { vm.navigate(Screen.RECIPES) },
+                    onOpenRecipe   = { recipe -> vm.openRecipe(recipe) },
                     onGoInv        = { vm.navigate(Screen.INVENTORY) },
                     onOpenVoice    = vm::openVoice,
                     marketArrivals  = state.marketArrivals,
