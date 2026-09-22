@@ -2,6 +2,7 @@ package com.eatda.app.util
 
 import android.content.Context
 import android.media.MediaPlayer
+import android.speech.tts.TextToSpeech
 import com.eatda.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,6 +12,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 object TtsService {
     private const val ENDPOINT = "https://texttospeech.googleapis.com/v1/text:synthesize"
@@ -19,45 +21,54 @@ object TtsService {
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
     private var currentPlayer: MediaPlayer? = null
+    private var fallbackTts: TextToSpeech? = null
 
     fun stop() {
         currentPlayer?.let { player ->
             runCatching { if (player.isPlaying) player.stop(); player.release() }
         }
         currentPlayer = null
+        fallbackTts?.stop()
         _isPlaying.value = false
     }
 
     suspend fun speak(context: Context, text: String) {
         stop()
         val key = BuildConfig.EATDA_TTS_KEY
-        if (key.isBlank()) return
+        if (key.isBlank()) { speakFallback(context, text); return }
 
         val audioBytes = withContext(Dispatchers.IO) {
-            val body = JSONObject().apply {
-                put("input", JSONObject().put("text", text))
-                put("voice", JSONObject().apply {
-                    put("languageCode", "ko-KR")
-                    put("name", "ko-KR-Wavenet-A")
-                })
-                put("audioConfig", JSONObject().put("audioEncoding", "MP3"))
-            }.toString().toByteArray()
+            runCatching {
+                val body = JSONObject().apply {
+                    put("input", JSONObject().put("text", text))
+                    put("voice", JSONObject().apply {
+                        put("languageCode", "ko-KR")
+                        put("name", "ko-KR-Wavenet-A")
+                    })
+                    put("audioConfig", JSONObject().put("audioEncoding", "MP3"))
+                }.toString().toByteArray()
 
-            val conn = URL("$ENDPOINT?key=$key").openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            conn.outputStream.use { it.write(body) }
+                val conn = URL("$ENDPOINT?key=$key").openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.connectTimeout = 5_000
+                conn.readTimeout    = 10_000
+                conn.doOutput = true
+                conn.outputStream.use { it.write(body) }
 
-            if (conn.responseCode != 200) return@withContext null
+                if (conn.responseCode != 200) return@runCatching null
 
-            android.util.Base64.decode(
-                JSONObject(conn.inputStream.bufferedReader().readText()).getString("audioContent"),
-                android.util.Base64.DEFAULT,
-            )
-        } ?: return
+                android.util.Base64.decode(
+                    JSONObject(conn.inputStream.bufferedReader().readText()).getString("audioContent"),
+                    android.util.Base64.DEFAULT,
+                )
+            }.getOrNull()
+        }
 
-        val tempFile = java.io.File(context.cacheDir, "tts.mp3").also { it.writeBytes(audioBytes) }
+        if (audioBytes == null) { speakFallback(context, text); return }
+
+        val tempFile = java.io.File(context.cacheDir, "tts_${System.currentTimeMillis()}.mp3")
+            .also { it.writeBytes(audioBytes) }
 
         val player = MediaPlayer()
         withContext(Dispatchers.IO) {
@@ -70,10 +81,30 @@ object TtsService {
             player.start()
             player.setOnCompletionListener {
                 it.release()
+                tempFile.delete()
                 currentPlayer = null
                 _isPlaying.value = false
             }
         }
     }
+
+    // Android 기본 TTS 폴백 (네트워크 없을 때)
+    private fun speakFallback(context: Context, text: String) {
+        if (fallbackTts == null) {
+            fallbackTts = TextToSpeech(context) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    fallbackTts?.language = Locale.KOREAN
+                    fallbackTts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                        override fun onStart(id: String?) { _isPlaying.value = true }
+                        override fun onDone(id: String?)  { _isPlaying.value = false }
+                        override fun onError(id: String?) { _isPlaying.value = false }
+                    })
+                    fallbackTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_fallback")
+                }
+            }
+        } else {
+            _isPlaying.value = true
+            fallbackTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_fallback")
+        }
+    }
 }
- 
