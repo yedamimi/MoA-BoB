@@ -38,9 +38,13 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
     val ttsPlaying by TtsService.isPlaying.collectAsStateWithLifecycle()
 
     // 시스템 뒤로가기 처리
-    BackHandler(
-        enabled = state.screen == Screen.RECIPE_DETAIL
-    ) {
+    BackHandler(enabled = state.activeScanMode != null) {
+        vm.closeScan()
+    }
+    BackHandler(enabled = state.phoneScanMode != null) {
+        vm.closePhoneScan()
+    }
+    BackHandler(enabled = state.screen == Screen.RECIPE_DETAIL) {
         vm.closeRecipe()
     }
 
@@ -402,7 +406,7 @@ private fun TtsPlayingBar(onStop: () -> Unit) {
                         .background(Color.White.copy(alpha = 0.85f)),
                 )
             }
-        } 
+        }
         Text("음성 재생 중", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
         EatdaIcon(EatdaIcons.Close, tint = Color.White.copy(alpha = 0.6f), size = 13.dp)
     }
