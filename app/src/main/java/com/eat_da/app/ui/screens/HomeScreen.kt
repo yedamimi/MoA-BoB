@@ -2,6 +2,9 @@ package com.eatda.app.ui.screens
 
 import android.content.Intent
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -249,7 +252,15 @@ private fun FullHomeScreen(
         item { Spacer(Modifier.height(6.dp)) }
 
         // ── 추천 레시피 ───────────────────────────────────────────────────────
-        item { SectionHeader(colors, sizes, "오늘의 추천 레시피", "보유 재료 기반", onMore = onGoRecipes) }
+        item {
+            SectionHeader(
+                colors,
+                sizes,
+                "오늘의 추천 레시피",
+                "보유 재료 기반",
+                onMore = onGoRecipes
+            )
+        }
 
         item {
             val recommended = recommendRecipes(
@@ -257,10 +268,32 @@ private fun FullHomeScreen(
                 recipes = recipes,
                 inventory = inventory
             )
+
             recommended.firstOrNull()?.let { recipe ->
+
+                // 현재 냉장고에 실제로 보유하고 있는 재료 개수
+                val matchedIngredientCount = recipe.ingredients.count { ingredient ->
+                    inventory.any { item ->
+
+                        val recipeName = ingredient
+                            .trim()
+                            .replace(" ", "")
+                            .replace("　", "")
+
+                        val inventoryName = item.name
+                            .trim()
+                            .replace(" ", "")
+                            .replace("　", "")
+
+                        recipeName.contains(inventoryName) ||
+                                inventoryName.contains(recipeName)
+                    }
+                }
+
                 RecipeHero(
                     colors = colors,
                     recipe = recipe,
+                    matchedIngredientCount = matchedIngredientCount,
                     onClick = {
                         onOpenRecipe(recipe)
                     }
@@ -316,6 +349,17 @@ private fun FullHomeScreen(
                 ) {
                     Text("바로가기 →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
+            }
+        }
+
+        // ── 신선도 낮은 식품 구매 유도 ────────────────────────────────────────
+        item {
+            val nudgeItem = inventory
+                .filter { it.daysLeft() < 0 }
+                .maxByOrNull { it.daysLeft() }
+            nudgeItem?.let {
+                FreshnessNudgeBubble(colors = colors, item = it, context = context)
+                Spacer(Modifier.height(4.dp))
             }
         }
 
@@ -399,7 +443,12 @@ private fun UrgentRow(colors: EatdaColors, item: FoodItem, onClick: () -> Unit) 
 }
 
 @Composable
-private fun RecipeHero(colors: EatdaColors, recipe: Recipe, onClick: () -> Unit) {
+private fun RecipeHero(
+    colors: EatdaColors,
+    recipe: Recipe,
+    matchedIngredientCount: Int,
+    onClick: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -437,7 +486,7 @@ private fun RecipeHero(colors: EatdaColors, recipe: Recipe, onClick: () -> Unit)
         }
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(
-                "${recipe.minutes}분 · 보유 재료 ${recipe.ingredients.size}개",
+                "${recipe.minutes}분 · 보유 재료 ${matchedIngredientCount}개",
                 fontSize = 11.sp,
                 color = colors.textMuted,
             )
@@ -614,3 +663,84 @@ private fun ExpiredBannerItem(
         }
     }
 }
+
+@Composable
+private fun FreshnessNudgeBubble(colors: EatdaColors, item: FoodItem, context: android.content.Context) {
+    val infiniteTransition = rememberInfiniteTransition(label = "nudge")
+    val nudgeAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.35f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "nudge_alpha",
+    )
+
+    val bubbleColor = Color(0xFFFFF3CD)
+    val bubbleBorder = Color(0xFFE8C96B)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset(y = (-14).dp)
+            .alpha(nudgeAlpha)
+            .clickable {
+                context.startActivity(
+                    Intent(context, com.eatda.app.ui.shop.ShopWebViewActivity::class.java)
+                )
+            },
+    ) {
+        // 위를 향하는 꼬리
+        Canvas(
+            modifier = Modifier
+                .padding(start = 20.dp)
+                .size(18.dp, 10.dp),
+        ) {
+            val outer = androidx.compose.ui.graphics.Path().apply {
+                moveTo(size.width / 2f, 0f)
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
+            }
+            drawPath(outer, color = bubbleBorder.copy(alpha = 0.7f))
+            val inner = androidx.compose.ui.graphics.Path().apply {
+                moveTo(size.width / 2f, 1.5f)
+                lineTo(size.width - 1f, size.height)
+                lineTo(1f, size.height)
+                close()
+            }
+            drawPath(inner, color = bubbleColor)
+        }
+
+        // 말풍선 본체
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(bubbleColor)
+                .border(1.dp, bubbleBorder.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(foodEmoji[item.name] ?: "🍽", fontSize = 20.sp, lineHeight = 20.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    "${item.name} 유통기한이 지났어요",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF3D2B00),
+                )
+                Text(
+                    "싱싱마켓 새벽배송으로 지금 주문하세요",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF7A5C00),
+                )
+            }
+        }
+    }
+}
+
+private val EatdaColors.isColorBlind: Boolean get() = this == ColorBlindEatdaColors
