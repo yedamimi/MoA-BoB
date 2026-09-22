@@ -148,7 +148,7 @@ val foodEmoji: Map<String, String> = mapOf(
 
 fun storageGuide(name: String): String = when (name) {
 
-    "oi" ->
+    "오이" ->
         "① 물기를 깨끗이 제거하세요.\n" +
                 "② 키친타월로 감싸 수분 손실을 줄여주세요.\n" +
                 "③ 밀폐용기나 비닐팩에 넣어 냉장 보관하세요.\n" +
@@ -160,7 +160,7 @@ fun storageGuide(name: String): String = when (name) {
                 "③ 송이의 꼭지 부분을 랩이나 비닐로 감싸주세요.\n" +
                 "※ 꼭지를 감싸면 숙성 속도를 늦추는 데 도움이 됩니다."
 
-    "yangpa" ->
+    "양파" ->
         "① 껍질이 있는 통양파는 물기를 제거하세요.\n" +
                 "② 망이나 바구니처럼 통풍이 잘 되는 곳에 보관하세요.\n" +
                 "③ 서늘하고 건조한 곳에서 보관하세요.\n" +
@@ -220,42 +220,124 @@ fun storageGuide(name: String): String = when (name) {
                 "③ 식재료에 맞는 적절한 환경에서 보관하세요."
 }
 
+/**
+ * 레시피 재료명과 냉장고 재료명을 비교할 때 사용하는 정규화 함수
+ *
+ * 예:
+ * " 연어 " -> "연어"
+ * "연 어" -> "연어"
+ *
+ * API에서 가져온 재료명과 Firebase 재고명이
+ * 공백 차이 때문에 매칭되지 않는 문제를 줄여준다.
+ */
+private fun normalizeIngredient(value: String): String {
+    return value
+        .trim()
+        .replace(" ", "")
+}
+
+/**
+ * 냉장고 재료와 레시피 재료가 서로 일치하는지 확인
+ *
+ * 예:
+ * 재고 = "연어"
+ * 레시피 = "연어살"
+ * → true
+ *
+ * 재고 = "닭가슴살"
+ * 레시피 = "닭가슴살 300g"
+ * → true
+ */
+private fun isIngredientMatched(
+    recipeIngredient: String,
+    availableIngredient: String
+): Boolean {
+
+    val recipeName = normalizeIngredient(recipeIngredient)
+    val availableName = normalizeIngredient(availableIngredient)
+
+    if (recipeName.isBlank() || availableName.isBlank()) {
+        return false
+    }
+
+    return recipeName.contains(availableName) ||
+            availableName.contains(recipeName)
+}
+
 fun recommendRecipes(
     availableIngredients: List<String>,
     recipes: List<Recipe>,
     inventory: List<FoodItem>
 ): List<Recipe> {
 
-    // 유통기한이 임박한 재료 목록 추출
+    // 재료명 비교 시 공백 차이 때문에 매칭이 실패하지 않도록 정규화
+    fun normalizeIngredient(name: String): String {
+        return name
+            .trim()
+            .replace(" ", "")
+            .replace("　", "")
+    }
+
+    // 레시피 재료와 실제 재고가 같은 재료인지 확인
+    fun isIngredientMatched(
+        recipeIngredient: String,
+        inventoryIngredient: String
+    ): Boolean {
+
+        fun removeQuantity(name: String): String {
+            return name
+                .replace(
+                    Regex(
+                        """\(?\d+(?:\.\d+)?(?:/\d+)?\s*(?:kg|g|mg|ml|l|개|모|팩|봉|장|대|통|구|병|캔|컵|인분)\)?$"""
+                    ),
+                    ""
+                )
+                .trim()
+        }
+
+        val recipeName = removeQuantity(
+            normalizeIngredient(recipeIngredient)
+        )
+
+        val inventoryName = removeQuantity(
+            normalizeIngredient(inventoryIngredient)
+        )
+
+        if (recipeName.isBlank() || inventoryName.isBlank()) {
+            return false
+        }
+
+        return recipeName == inventoryName
+    }
+
+    // 유통기한이 임박하거나 지난 실제 Firebase 재고
     val expiringIngredients = inventory
         .filter {
-            when (it.expiryStatus()) {
+            it.expiryStatus() in listOf(
                 ExpiryStatus.EXPIRED,
                 ExpiryStatus.CRITICAL,
-                ExpiryStatus.WARNING -> true
-                else -> false
-            }
+                ExpiryStatus.WARNING
+            )
         }
-        .map { it.name }
+        .map { normalizeIngredient(it.name) }
         .distinct()
 
-    // 임시 부족 영양소
+    // 현재는 단백질을 보완 영양소로 사용
     // 추후 실제 영양 분석 결과로 대체 가능
     val lackingNutrient = "단백질"
 
     return recipes
         .map { recipe ->
 
-            // 보유 재료와 일치하는 개수
-            // API 재료명에 "두부 1모", "양파 1/2개"처럼 수량이 포함될 수 있으므로 contains() 사용
+            // --------------------------------
+            // 1. 현재 재고와 레시피 재료가 몇 개 일치하는지
+            // --------------------------------
             val matchedCount = recipe.ingredients.count { ingredient ->
                 availableIngredients.any { available ->
-                    ingredient.contains(available) ||
-                            available.contains(ingredient)
+                    isIngredientMatched(ingredient, available)
                 }
             }
 
-            // 재료 일치도 계산
             val ingredientScore =
                 if (recipe.ingredients.isNotEmpty()) {
                     matchedCount.toDouble() / recipe.ingredients.size
@@ -263,15 +345,22 @@ fun recommendRecipes(
                     0.0
                 }
 
-            // 유통기한 임박 재료와 일치하는 개수
-            val expiringCount = recipe.ingredients.count { ingredient ->
+            // --------------------------------
+            // 2. 우선 소진 재료가 레시피에 들어가는지
+            // --------------------------------
+            val hasExpiringIngredient = recipe.ingredients.any { ingredient ->
                 expiringIngredients.any { expiring ->
-                    ingredient.contains(expiring) ||
-                            expiring.contains(ingredient)
+                    isIngredientMatched(ingredient, expiring)
                 }
             }
 
-            // 유통기한 우선도 계산
+            // 우선 소진 재료가 레시피에 몇 개 들어가는지
+            val expiringCount = recipe.ingredients.count { ingredient ->
+                expiringIngredients.any { expiring ->
+                    isIngredientMatched(ingredient, expiring)
+                }
+            }
+
             val expiryScore =
                 if (recipe.ingredients.isNotEmpty()) {
                     expiringCount.toDouble() / recipe.ingredients.size
@@ -279,7 +368,9 @@ fun recommendRecipes(
                     0.0
                 }
 
-            // 영양 보완도 계산
+            // --------------------------------
+            // 3. 영양 보완도 (30%)
+            // --------------------------------
             val nutritionScore =
                 if (recipe.tag == lackingNutrient) {
                     1.0
@@ -287,59 +378,56 @@ fun recommendRecipes(
                     0.0
                 }
 
-            // 최종 점수 계산
-            // 재료 일치도 50% + 영양 보완도 30% + 유통기한 우선도 20%
+            // --------------------------------
+            // 4. 기존 추천 점수
+            // --------------------------------
             val totalScore =
                 ingredientScore * 0.5 +
                         nutritionScore * 0.3 +
                         expiryScore * 0.2
 
-            Triple(recipe, totalScore, matchedCount)
-        }
-
-        // 레시피의 모든 재료를 현재 보유하고 있는 경우에만 추천
-        // .filter { (recipe, _, matchedCount) ->
-        //    matchedCount == recipe.ingredients.size
-        //}
-
-        // (임시)보유 재료가 1개 이상 일치하는 레시피만 추천
-        .filter { (_, _, matchedCount) ->
-            matchedCount > 0
-        }
-
-        // 점수 높은 순으로 정렬
-        // .sortedByDescending { it.second }
-
-        // 보유 재료 일치 개수에 따른 추천 우선순위
-        // 모든 재료 일치 → 4개 이상 → 3개 → 2개 → 1개
-        .sortedWith(
-            compareByDescending<Triple<Recipe, Double, Int>> { (recipe, _, matchedCount) ->
-                when {
-                    // 레시피의 모든 재료를 보유한 경우
-                    matchedCount == recipe.ingredients.size -> 5
-
-                    // 보유 재료가 4개 이상 일치
-                    matchedCount >= 4 -> 4
-
-                    // 보유 재료가 3개 일치
-                    matchedCount == 3 -> 3
-
-                    // 보유 재료가 2개 일치
-                    matchedCount == 2 -> 2
-
-                    // 보유 재료가 1개 일치
-                    matchedCount == 1 -> 1
-
-                    else -> 0
-                }
+            // --------------------------------
+            // 5. 재료 일치 개수에 따른 카테고리
+            // --------------------------------
+            val categoryScore = when {
+                matchedCount == recipe.ingredients.size -> 5
+                matchedCount >= 4 -> 4
+                matchedCount == 3 -> 3
+                matchedCount == 2 -> 2
+                matchedCount == 1 -> 1
+                else -> 0
             }
-                // 같은 카테고리 안에서는 기존 totalScore가 높은 순
+
+            Triple(
+                recipe,
+                totalScore,
+                categoryScore to hasExpiringIngredient
+            )
+        }
+
+        // 재고가 하나도 없는 레시피는 추천 목록에서 제외
+        .filter { (_, _, categoryInfo) ->
+            categoryInfo.first > 0
+        }
+
+        // --------------------------------
+        // 정렬 순서
+        //
+        // ① 우선 소진 재료가 있는 레시피
+        // ② 추천 점수
+        // ③ 재고 일치 개수
+        //
+
+        // --------------------------------
+        .sortedWith(
+            compareByDescending<Triple<Recipe, Double, Pair<Int, Boolean>>> {
+                it.third.second
+            }
                 .thenByDescending { it.second }
+                .thenByDescending { it.third.first }
         )
 
-        // Recipe 객체만 추출
         .map { it.first }
 
-        // 임시로 상위 10개만 반환
-        .take(10)
+    // 조건에 맞는 레시피를 모두 보여줌
 }
