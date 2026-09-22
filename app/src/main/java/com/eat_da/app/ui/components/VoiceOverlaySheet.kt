@@ -66,17 +66,13 @@ fun VoiceOverlaySheet(
 
     val scope = rememberCoroutineScope()
 
-    // 음성 초기 화면으로 복귀 — 로컬 상태 리셋 + STT 재시작
+    // 음성 초기 화면으로 복귀 — 로컬 상태 리셋 (STT 재시작 안 함, 마이크 버튼 눌러야)
     fun goBack() {
         heardText    = ""
         hasResponded = false
         onCommand(VoiceCommand.Back)
-        SttService.reset()
-        phase = VoicePhase.LISTENING
-        scope.launch {
-            delay(300)
-            SttService.start(context)
-        }
+        SttService.stop()
+        phase = VoicePhase.IDLE
     }
 
     // ── 마이크 권한 ──────────────────────────────────────────────────────────
@@ -84,14 +80,14 @@ fun VoiceOverlaySheet(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasMicPerm = granted
-        if (granted) { phase = VoicePhase.LISTENING; SttService.start(context) }
+        // 권한 허용 후에도 자동 시작 안 함 — 마이크 버튼 눌러야 시작
     }
 
     LaunchedEffect(Unit) {
         val pm = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
         hasMicPerm = (pm == android.content.pm.PackageManager.PERMISSION_GRANTED)
-        if (hasMicPerm) { phase = VoicePhase.LISTENING; SttService.start(context) }
-        else permLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        if (!hasMicPerm) permLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        // phase 는 IDLE 유지 — 마이크 버튼 눌러야 시작
     }
 
     // ── STT 결과 처리 ────────────────────────────────────────────────────────
@@ -99,11 +95,22 @@ fun VoiceOverlaySheet(
         when (val s = sttState) {
             is SttService.SttState.Listening -> phase = VoicePhase.LISTENING
             is SttService.SttState.Result -> {
-                val text = s.text.trim()
-                heardText = text
+                val invNames = inventory.map { it.name }
 
+                // 후보 중 Unknown이 아닌 첫 번째 선택 — 없으면 1순위 결과 사용
+                val (bestText, cmd) = s.candidates
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .firstNotNullOfOrNull { candidate ->
+                        val c = VoiceCommandParser.parse(candidate, invNames, currentIsAddMode)
+                        if (c !is VoiceCommand.Unknown) candidate to c else null
+                    } ?: run {
+                    val fallback = s.text.trim()
+                    fallback to VoiceCommandParser.parse(fallback, invNames, currentIsAddMode)
+                }
+
+                heardText = bestText
                 phase = VoicePhase.PROCESSING
-                val cmd = VoiceCommandParser.parse(text, inventory.map { it.name }, currentIsAddMode)
 
                 // Back: 음성 초기 화면으로 복귀
                 if (cmd is VoiceCommand.Back) {
@@ -118,14 +125,9 @@ fun VoiceOverlaySheet(
                 SttService.reset()
             }
             is SttService.SttState.Error -> {
-                if (hasMicPerm) {
-                    phase = VoicePhase.LISTENING
-                    delay(600)
-                    SttService.start(context)
-                } else {
-                    phase = VoicePhase.IDLE
-                    SttService.reset()
-                }
+                SttService.reset()
+                phase = VoicePhase.IDLE
+                // 에러 시 자동 재시작 안 함 — 마이크 버튼 눌러야 다시 시작
             }
             else -> {}
         }
@@ -136,12 +138,28 @@ fun VoiceOverlaySheet(
     LaunchedEffect(ttsPlaying) {
         if (prevPlaying && !ttsPlaying) {
             when (phase) {
-                VoicePhase.SPEAKING_AWAIT,
-                VoicePhase.SPEAKING -> {
+                VoicePhase.SPEAKING_AWAIT -> {
+                    // 삭제 확인 대기 — 항상 재청취 (응/아니 기다려야 함)
                     heardText = ""
                     phase     = VoicePhase.LISTENING
                     delay(300)
                     SttService.start(context)
+                }
+                VoicePhase.SPEAKING -> {
+                    if (currentIsAddMode) {
+                        // 재고 추가 모드 — 이어서 청취
+                        heardText = ""
+                        phase     = VoicePhase.LISTENING
+                        delay(300)
+                        SttService.start(context)
+                    } else {
+                        // 일반 모드 — 응답 후 초기 화면으로 (마이크 버튼 눌러야 다음 질문 가능)
+                        delay(200)
+                        SttService.stop()
+                        heardText    = ""
+                        hasResponded = false
+                        phase        = VoicePhase.IDLE
+                    }
                 }
                 else -> {}
             }
@@ -213,7 +231,7 @@ fun VoiceOverlaySheet(
                     }
                     Text(
                         text = when (phase) {
-                            VoicePhase.IDLE           -> if (!hasMicPerm) "마이크 권한 필요" else "잠시만요..."
+                            VoicePhase.IDLE           -> if (!hasMicPerm) "마이크 권한 필요" else "클릭하세요"
                             VoicePhase.LISTENING      -> if (isAddMode) "추가할 식재료를 말씀하세요..."
                             else if (hasResponded) "계속 말씀하세요..." else "듣는 중..."
                             VoicePhase.PROCESSING     -> "분석 중..."
@@ -250,10 +268,17 @@ fun VoiceOverlaySheet(
                             permLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             return@MicButton
                         }
-                        if (phase == VoicePhase.IDLE) {
-                            heardText = ""
-                            phase     = VoicePhase.LISTENING
-                            SttService.start(context)
+                        when (phase) {
+                            VoicePhase.IDLE -> {
+                                heardText = ""
+                                phase     = VoicePhase.LISTENING
+                                SttService.start(context)
+                            }
+                            VoicePhase.LISTENING -> {
+                                SttService.stop()
+                                phase = VoicePhase.IDLE
+                            }
+                            else -> {}
                         }
                     },
                 )
@@ -357,48 +382,36 @@ fun VoiceOverlaySheet(
             }
 
             // 삭제 확인 카드
-            // 삭제 확인 카드
             pendingDeleteItem?.let { item ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(colors.dangerSoft)
-                        .border(
-                            1.dp,
-                            colors.danger.copy(alpha = 0.3f),
-                            RoundedCornerShape(14.dp)
-                        )
+                        .border(1.dp, colors.danger.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
                         .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment     = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        foodEmoji[item.name] ?: "🍽️",
-                        fontSize = 28.sp
-                    )
-
+                    Text(foodEmoji[item.name] ?: "🍽️", fontSize = 28.sp)
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            if (pendingDeleteQty != null) {
-                                "${item.name} ${pendingDeleteQty}개 삭제할까요?"
-                            } else {
-                                "${item.name} 삭제할까요?"
-                            },
-                            fontSize = 14.sp,
+                            if (pendingDeleteQty != null) "${item.name} ${pendingDeleteQty}개 삭제할까요?"
+                            else "${item.name} 삭제할까요?",
+                            fontSize   = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = colors.danger,
+                            color      = colors.danger,
                         )
-
                         Text(
                             "\"응\" 또는 \"아니\" 라고 말하세요",
                             fontSize = 11.sp,
-                            color = colors.textMuted,
+                            color    = colors.textMuted,
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
                 }
             }
+
             // 힌트 목록
             // 추가 모드: heardText/hasResponded 무관하게 즉시 표시 (모드 진입 즉시 힌트 노출)
             // 일반 모드: 처음 열었을 때만 표시
@@ -472,7 +485,7 @@ private fun VoiceHintList(colors: EatdaColors) {
             modifier   = Modifier.padding(bottom = 2.dp),
         )
         listOf(
-            "재고 추가 모드 열어줘",
+            "재고 추가 열어줘",
             "유통기한 N일 남은 거 있어?",
             "우유 유통기한 언제야?",
             "냉장고에 계란 있어?",
