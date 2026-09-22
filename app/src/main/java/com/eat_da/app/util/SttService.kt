@@ -19,7 +19,7 @@ object SttService {
     sealed class SttState {
         object Idle      : SttState()
         object Listening : SttState()
-        data class Result(val text: String) : SttState()
+        data class Result(val text: String, val candidates: List<String> = emptyList()) : SttState()
         data class Error(val code: Int)     : SttState()
     }
 
@@ -43,10 +43,13 @@ object SttService {
                 override fun onBufferReceived(b: ByteArray?) {}
                 override fun onEndOfSpeech()              {}
                 override fun onResults(results: Bundle?) {
-                    val text = results
+                    val candidates = results
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull().orEmpty()
-                    _state.value = SttState.Result(text)
+                        ?: emptyList()
+                    _state.value = SttState.Result(
+                        text       = candidates.firstOrNull().orEmpty(),
+                        candidates = candidates,
+                    )
                 }
                 override fun onPartialResults(p: Bundle?) {}
                 override fun onEvent(t: Int, p: Bundle?)  {}
@@ -56,7 +59,7 @@ object SttService {
                 Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
                 }
             )
