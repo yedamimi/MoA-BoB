@@ -328,33 +328,15 @@
 
 <!-- Payment popup -->
 <div class="overlay hidden" id="pay-ov">
-  <div class="popup">
-    <div class="pp-icon">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-        <path d="M5 12l4.5 4.5L19 7" stroke="#2F6DB5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <div class="popup" style="text-align:center;padding:36px 24px">
+    <div style="width:56px;height:56px;border-radius:50%;background:#E8F5EF;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+        <path d="M5 12l4.5 4.5L19 7" stroke="#2EC57E" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-    <div class="pp-title">결제가 완료됐어요</div>
-    <div class="pp-sub">구매한 <b id="pp-cnt">0</b>개 상품을<br><b>모아밥</b>에 연동할까요?</div>
-    <!-- ③ 배송 예정일 박스 (2만원 이상일 때만 표시) -->
-    <div class="delivery-box" id="pp-delivery-box">
-      <div class="delivery-box-icon">🌙</div>
-      <div class="delivery-box-text">
-        <div class="delivery-box-title">내일 새벽 7시 도착 예정</div>
-        <div class="delivery-box-sub">재래시장 신선 직배송</div>
-      </div>
-    </div>
-    <div class="pp-list" id="pp-list"></div>
-    <div class="btn-row">
-      <button class="btn-later" id="pp-later">나중에</button>
-      <button class="btn-fridge" id="pp-confirm">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <rect x="5" y="2.5" width="14" height="19" rx="2.5" stroke="#fff" stroke-width="1.8"/>
-          <path d="M5 10h14M9 5.5v2M9 13v3" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-        모아밥에 연동하기
-      </button>
-    </div>
+    <div class="pp-title" style="font-size:18px;margin-bottom:8px">결제가 완료됐어요</div>
+    <div style="font-size:14px;color:var(--inkMuted);font-weight:500;margin-bottom:24px">배송을 시작합니다 📦</div>
+    <button id="pp-confirm" onclick="document.getElementById('pay-ov').className='overlay hidden'" style="width:100%;padding:14px;border-radius:12px;background:var(--brand);color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer">확인</button>
   </div>
 </div>
 
@@ -555,40 +537,17 @@
 
   function pay(){
     if(!cart.length) return;
+    var tot=cart.reduce(function(s,i){return s+i.qty*i.price},0);
+    if(tot<DAWN_MIN){showToast('2만원 이상 담아야 주문할 수 있어요');return;}
     order=cart.slice();
-    var orderTot=order.reduce(function(s,i){return s+i.qty*i.price},0);
     cart=[];renderGrid();updateBar();
-    var cnt=order.reduce(function(s,i){return s+i.qty},0);
-    document.getElementById('pp-cnt').textContent=cnt;
-    // 2만원 이상이면 새벽배송 박스 표시
-    document.getElementById('pp-delivery-box').style.display=orderTot>=DAWN_MIN?'':'none';
-    var listHtml='';
-    for(var i=0;i<order.length;i++){
-      var it=order[i];
-      listHtml+='<div class="pp-row">'
-        +'<div class="pp-emo">'+it.emoji+'</div>'
-        +'<div style="flex:1;min-width:0">'
-        +'<div class="pp-rname">'+it.name+'</div>'
-        +'<div class="pp-rmeta">'+it.unit+' × '+it.qty+' · 소비기한 D-'+it.shelfDays+'</div>'
-        +'</div>'
-        +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#93A0AA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-        +'</div>';
-    }
-    document.getElementById('pp-list').innerHTML=listHtml;
     document.getElementById('pay-ov').className='overlay';
     stage='paid';
-  }
-
-  function ppLater(){
-    document.getElementById('pay-ov').className='overlay hidden';
-    stage='browse';showToast('주문 내역에 저장했어요');
+    sendToFridge();
   }
 
   function sendToFridge(){
-    var btn=document.getElementById('pp-confirm');
-    btn.disabled=true;
-    document.getElementById('pay-ov').className='overlay hidden';
-    document.getElementById('link-ov').className='overlay';
+    document.getElementById('link-ov').className='overlay hidden';
     stage='linked';
 
     var today=new Date();
@@ -601,6 +560,7 @@
       exp.setDate(today.getDate()+it.shelfDays);
 
 
+      var key=(it.short||it.name)+'_'+Date.now();
       var item={
         name:it.short||it.name,
         category:it.category.toUpperCase(),
@@ -615,7 +575,7 @@
         fromShop:true
       };
 
-            fetch(FIREBASE_DB_URL+'/MoA-BoB/foodInventory/' + encodeURIComponent(item.name) + '.json',{
+      fetch(FIREBASE_DB_URL+'/MoA-BoB/pendingDelivery/'+encodeURIComponent(key)+'.json',{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(item)
@@ -640,9 +600,8 @@
 
         if(success){
           order=[];
-          showToast('모아밥 재고에 연동됐어요');
         } else {
-          showToast('연동에 실패했어요. 다시 시도해 주세요');
+          showToast('저장에 실패했어요. 다시 시도해 주세요');
           console.error(error);
         }
       },300);
@@ -689,8 +648,6 @@
     if(!cart.length){showToast('장바구니가 비어 있어요');return;}
     document.getElementById('cart-ov').className='overlay hidden';pay();
   };
-  document.getElementById('pp-later').onclick=ppLater;
-  document.getElementById('pp-confirm').onclick=sendToFridge;
 
   renderGrid();
 </script>
