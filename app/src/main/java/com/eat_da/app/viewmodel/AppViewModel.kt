@@ -108,11 +108,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val db     = Firebase.database.reference.child("eatda")
     private val ctx    get() = getApplication<Application>()
 
-    private var inventoryListener:       ValueEventListener? = null
-    private var scanResultsListener:     ValueEventListener? = null
-    private var scanStatusListener:      ValueEventListener? = null
-    private var arrivalsListener:        ChildEventListener? = null
-    private var householdMemberListener: ValueEventListener? = null
+    private var inventoryListener:         ValueEventListener? = null
+    private var scanResultsListener:       ValueEventListener? = null
+    private var scanStatusListener:        ValueEventListener? = null
+    private var arrivalsListener:          ChildEventListener? = null
+    private var pendingDeliveryListener:   ValueEventListener? = null
+    private var householdMemberListener:   ValueEventListener? = null
     private var allergenHapticFired = false
 
     private val listenerStartTime = System.currentTimeMillis()
@@ -127,6 +128,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         listenToScanResults()
         listenToScanStatus()
         listenToArrivals()
+        listenToPendingDelivery()
         loadRecipes()
     }
 
@@ -144,49 +146,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun listenToInventory() {
         inventoryListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val stockItems = snapshot.children.mapNotNull { stock ->
-                    val count = stock.getValue(Int::class.java) ?: 0
-                    if (count <= 0) return@mapNotNull null
-
-                    val (displayName, category) = when (stock.key) {
-                        "oi"        -> Pair("오이",    FoodCategory.VEGETABLE)
-                        "apple"     -> Pair("사과",    FoodCategory.FRUIT)
-                        "banana"    -> Pair("바나나",  FoodCategory.FRUIT)
-                        "orange"    -> Pair("오렌지",  FoodCategory.FRUIT)
-                        "broccoli"  -> Pair("브로콜리", FoodCategory.VEGETABLE)
-                        "carrot"    -> Pair("당근",    FoodCategory.VEGETABLE)
-                        "sandwich"  -> Pair("샌드위치", FoodCategory.GRAIN)
-                        "pizza"     -> Pair("피자",    FoodCategory.GRAIN)
-                        "donut"     -> Pair("도넛",    FoodCategory.GRAIN)
-                        "cake"      -> Pair("케이크",  FoodCategory.GRAIN)
-                        "hot dog"   -> Pair("핫도그",  FoodCategory.GRAIN)
-                        "tofu"      -> Pair("두부",    FoodCategory.GRAIN)
-                        else        -> Pair(stock.key ?: "", FoodCategory.GRAIN)
-                    }
-
-                    FoodItem(
-                        id        = stock.key?.hashCode() ?: 0,
-                        name      = displayName,
-                        category  = category,
-                        expiry    = LocalDate.now().plusDays(7),
-                        qty       = "${count}개",
-                        location  = "냉장고",
-                        addedDays = 0,
-                        isAllergen = false,
-                    )
+                val dbItems = snapshot.children.mapNotNull { child ->
+                    runCatching {
+                        val name      = child.child("name").getValue(String::class.java) ?: return@runCatching null
+                        val catStr    = child.child("category").getValue(String::class.java) ?: "GRAIN"
+                        val expiryStr = child.child("expiry").getValue(String::class.java) ?: LocalDate.now().toString()
+                        val expiry    = runCatching { LocalDate.parse(expiryStr) }.getOrDefault(LocalDate.now())
+                        val qty       = child.child("qty").getValue(String::class.java) ?: "1개"
+                        val location  = child.child("location").getValue(String::class.java) ?: "냉장고"
+                        val allergen  = child.child("isAllergen").getValue(Boolean::class.java) ?: false
+                        FoodItem(
+                            id         = child.key?.hashCode() ?: name.hashCode(),
+                            name       = name,
+                            category   = runCatching { FoodCategory.valueOf(catStr) }.getOrDefault(FoodCategory.GRAIN),
+                            expiry     = expiry,
+                            qty        = qty,
+                            location   = location,
+                            addedDays  = 0,
+                            isAllergen = allergen,
+                        )
+                    }.getOrNull()
                 }
-
                 val webcam   = _state.value.webcamItems
-                val combined = stockItems + webcam.filter { w -> stockItems.none { it.name == w.name } }
+                val combined = dbItems + webcam.filter { w -> dbItems.none { it.name == w.name } }
                 val notifs   = buildNotifications(combined, _state.value.settings, _state.value.allergens)
                 _state.update { it.copy(inventory = combined, notifications = notifs, firebaseConnected = true) }
             }
-
             override fun onCancelled(error: DatabaseError) {
                 _state.update { it.copy(firebaseConnected = false) }
             }
         }
-        Firebase.database.reference.child("stocks").addValueEventListener(inventoryListener!!)
+        rootDb.child("MoA-BoB").child("foodInventory").addValueEventListener(inventoryListener!!)
     }
 
     private fun listenToScanResults() {
@@ -261,29 +251,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         db.child("inventory").addChildEventListener(arrivalsListener!!)
     }
 
-    private fun autoAddMarketItem(item: FoodItem) {
-        val stockKey = when (item.name) {
-            "오이"    -> "oi"
-            "사과"    -> "apple"
-            "바나나"  -> "banana"
-            "오렌지"  -> "orange"
-            "브로콜리" -> "broccoli"
-            "당근"    -> "carrot"
-            "샌드위치" -> "sandwich"
-            "피자"    -> "pizza"
-            "도넛"    -> "donut"
-            "케이크"  -> "cake"
-            "핫도그"  -> "hot dog"
-            "두부"    -> "tofu"
-            else      -> item.name
-        }
-        val count    = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
-        val stockRef = Firebase.database.reference.child("stocks").child(stockKey)
-        stockRef.get().addOnSuccessListener { snapshot ->
-            val current = snapshot.getValue(Int::class.java) ?: 0
-            stockRef.setValue(current + count)
-        }
-        _state.update { it.copy(toast = "${item.name} 냉장고에 추가됐어요 🧊") }
+    private fun autoAddMarketItem(item: FoodItem, showToast: Boolean = true) {
+        val key = "${item.name}_${System.currentTimeMillis()}"
+        rootDb.child("MoA-BoB").child("foodInventory").child(key).setValue(
+            mapOf(
+                "name"       to item.name,
+                "category"   to item.category.name,
+                "expiry"     to item.expiry.toString(),
+                "qty"        to item.qty,
+                "location"   to item.location,
+                "isAllergen" to item.isAllergen,
+            )
+        )
+        if (showToast) _state.update { it.copy(toast = "${item.name} 냉장고에 추가됐어요 🧊") }
     }
 
     private fun addWebcamItem(item: FoodItem) {
@@ -298,8 +278,83 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun dismissMarketArrivals() {}
-    fun confirmMarketArrivals() {}
+    fun checkPendingDelivery() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val conn = java.net.URL(
+                    "https://eat-da-bd161-default-rtdb.asia-southeast1.firebasedatabase.app/MoA-BoB/pendingDelivery.json"
+                ).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 5_000
+                conn.readTimeout    = 5_000
+                val body = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+                if (body == "null") return@launch
+                val root  = org.json.JSONObject(body)
+                val items = root.keys().asSequence().mapNotNull { key ->
+                    runCatching {
+                        val o      = root.getJSONObject(key)
+                        val name   = o.optString("name").takeIf { it.isNotEmpty() } ?: return@runCatching null
+                        val catStr = o.optString("category", "GRAIN")
+                        val expStr = o.optString("expiry", LocalDate.now().toString())
+                        val expiry = runCatching { LocalDate.parse(expStr) }.getOrDefault(LocalDate.now())
+                        FoodItem(
+                            id         = key.hashCode(),
+                            name       = name,
+                            category   = runCatching { FoodCategory.valueOf(catStr) }.getOrDefault(FoodCategory.GRAIN),
+                            expiry     = expiry,
+                            qty        = o.optString("qty", "1개"),
+                            location   = o.optString("location", "냉장 1칸"),
+                            addedDays  = 0,
+                            isAllergen = o.optBoolean("isAllergen", false),
+                        )
+                    }.getOrNull()
+                }.toList()
+                if (items.isNotEmpty()) _state.update { it.copy(marketArrivals = items) }
+            } catch (_: Exception) { }
+        }
+    }
+
+    private fun listenToPendingDelivery() {
+        val ref = rootDb.child("MoA-BoB").child("pendingDelivery")
+        pendingDeliveryListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val items = snapshot.children.mapNotNull { child ->
+                    runCatching {
+                        val name      = child.child("name").getValue(String::class.java) ?: return@runCatching null
+                        val catStr    = child.child("category").getValue(String::class.java) ?: "GRAIN"
+                        val expiryStr = child.child("expiry").getValue(String::class.java) ?: LocalDate.now().toString()
+                        val expiry    = runCatching { LocalDate.parse(expiryStr) }.getOrDefault(LocalDate.now())
+                        FoodItem(
+                            id         = child.key?.hashCode() ?: name.hashCode(),
+                            name       = name,
+                            category   = runCatching { FoodCategory.valueOf(catStr) }.getOrDefault(FoodCategory.GRAIN),
+                            expiry     = expiry,
+                            qty        = child.child("qty").getValue(String::class.java) ?: "1개",
+                            location   = child.child("location").getValue(String::class.java) ?: "냉장 1칸",
+                            addedDays  = 0,
+                            isAllergen = child.child("isAllergen").getValue(Boolean::class.java) ?: false,
+                        )
+                    }.getOrNull()
+                }
+                _state.update { it.copy(marketArrivals = items) }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        ref.addValueEventListener(pendingDeliveryListener!!)
+    }
+
+    fun dismissMarketArrivals() {
+        _state.update { it.copy(marketArrivals = emptyList()) }
+    }
+
+    fun confirmMarketArrivals() {
+        val items = _state.value.marketArrivals
+        items.forEach { autoAddMarketItem(it, showToast = false) }
+        rootDb.child("MoA-BoB").child("pendingDelivery").removeValue()
+        val names  = items.take(3).joinToString(", ") { it.name }
+        val suffix = if (items.size > 3) " 외 ${items.size - 3}개" else ""
+        _state.update { it.copy(marketArrivals = emptyList(), toast = "${names}${suffix} 냉장고에 추가됐어요 🧊") }
+    }
 
     // ── 알림 생성 ─────────────────────────────────────────────────────────────
 
@@ -775,7 +830,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        inventoryListener?.let  { Firebase.database.reference.child("stocks").removeEventListener(it) }
+        inventoryListener?.let         { rootDb.child("MoA-BoB").child("foodInventory").removeEventListener(it) }
+        pendingDeliveryListener?.let   { rootDb.child("MoA-BoB").child("pendingDelivery").removeEventListener(it) }
         scanResultsListener?.let { db.child("scan_results").removeEventListener(it) }
         scanStatusListener?.let  { db.child("scan_status").removeEventListener(it) }
         arrivalsListener?.let    { db.child("inventory").removeEventListener(it) }
