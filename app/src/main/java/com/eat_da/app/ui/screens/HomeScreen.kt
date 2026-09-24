@@ -57,6 +57,7 @@ fun HomeScreen(
     marketArrivals: List<FoodItem> = emptyList(),
     onDismissMarket: () -> Unit = {},
     onConfirmMarket: () -> Unit = {},
+    onCheckDelivery: () -> Unit = {},
 ) {
     val criticalItems = inventory.filter { it.expiryStatus() in listOf(ExpiryStatus.CRITICAL, ExpiryStatus.EXPIRED) }
 
@@ -66,7 +67,7 @@ fun HomeScreen(
         FullHomeScreen(
             colors, sizes, inventory, recipes, criticalItems, onOpenItem,
             onGoNotif, onGoRecipes, onOpenRecipe, onGoInv, onOpenVoice,
-            marketArrivals, onDismissMarket, onConfirmMarket,
+            marketArrivals, onDismissMarket, onConfirmMarket, onCheckDelivery,
         )
     }
 }
@@ -174,6 +175,7 @@ private fun FullHomeScreen(
     marketArrivals: List<FoodItem> = emptyList(),
     onDismissMarket: () -> Unit = {},
     onConfirmMarket: () -> Unit = {},
+    onCheckDelivery: () -> Unit = {},
 ) {
     val total        = inventory.size
     val warning      = inventory.count { it.expiryStatus() in listOf(ExpiryStatus.WARNING, ExpiryStatus.SOON) }
@@ -183,6 +185,11 @@ private fun FullHomeScreen(
     val context = LocalContext.current
     val scope   = rememberCoroutineScope()
     var ocrResult by remember { mutableStateOf<String?>(null) }
+    var sheetOpen by remember { mutableStateOf(false) }
+
+    val shopLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { onCheckDelivery() }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicturePreview()
@@ -196,175 +203,188 @@ private fun FullHomeScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(colors.bg),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-    ) {
-
-        // ── 인사말 + 제목 ─────────────────────────────────────────────────────
-        item {
-            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
-                Row(
-                    verticalAlignment    = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text("안녕하세요", fontSize = 13.sp, color = colors.textMuted, fontWeight = FontWeight.Medium)
-                    Text("👋", fontSize = 14.sp)
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    buildAnnotatedString {
-                        append("길민재 님의 ")
-                        pushStyle(SpanStyle(color = colors.accent))
-                        append("냉장고")
-                        pop()
-                    },
-                    fontSize   = if (sizes.fontBase >= 18) 25.sp else 23.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = colors.text,
-                )
-            }
-        }
-
-        // ── 통계 카드 ─────────────────────────────────────────────────────────
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                StatCard(colors, total,    "보관 식재료", StatCardTone(fg = colors.accent,     bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
-                StatCard(colors, warning,  "주의 필요",  StatCardTone(fg = colors.danger,     bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
-                StatCard(colors, todayExp, "오늘 만료",  StatCardTone(fg = Color(0xFF9B6B1F), bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
-            }
-        }
-
-        // ── 유통기한 만료 배너 ────────────────────────────────────────────────
-        item { ExpiredBannerItem(colors, expiredItems, onGoInv, onOpenItem) }
-
-        // ── 긴급 알림 ─────────────────────────────────────────────────────────
-        item { SectionHeader(colors, sizes, "긴급 알림", "${criticalItems.size}건의 처리가 필요해요", onMore = onGoNotif) }
-
-        items(criticalItems.take(3)) { item ->
-            UrgentRow(colors, item, onClick = { onOpenItem(item) })
-            Spacer(Modifier.height(8.dp))
-        }
-
-        item { Spacer(Modifier.height(6.dp)) }
-
-        // ── 추천 레시피 ───────────────────────────────────────────────────────
-        item {
-            SectionHeader(
-                colors,
-                sizes,
-                "오늘의 추천 레시피",
-                "보유 재료 기반",
-                onMore = onGoRecipes
+    Column(modifier = Modifier.fillMaxSize().background(colors.bg)) {
+        if (marketArrivals.isNotEmpty() && !sheetOpen) {
+            DeliveryArrivalBanner(
+                count   = marketArrivals.size,
+                colors  = colors,
+                onClick = { sheetOpen = true },
             )
         }
 
-        item {
-            val recommended = recommendRecipes(
-                inventory.map { it.name },
-                recipes = recipes,
-                inventory = inventory
-            )
+        LazyColumn(
+            modifier = Modifier.weight(1f).background(colors.bg),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+        ) {
 
-            recommended.firstOrNull()?.let { recipe ->
-
-                // 현재 냉장고에 실제로 보유하고 있는 재료 개수
-                val matchedIngredientCount = recipe.ingredients.count { ingredient ->
-                    inventory.any { item ->
-
-                        val recipeName = ingredient
-                            .trim()
-                            .replace(" ", "")
-                            .replace("　", "")
-
-                        val inventoryName = item.name
-                            .trim()
-                            .replace(" ", "")
-                            .replace("　", "")
-
-                        recipeName.contains(inventoryName) ||
-                                inventoryName.contains(recipeName)
+            // ── 인사말 + 제목 ─────────────────────────────────────────────────────
+            item {
+                Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
+                    Row(
+                        verticalAlignment    = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text("안녕하세요", fontSize = 13.sp, color = colors.textMuted, fontWeight = FontWeight.Medium)
+                        Text("👋", fontSize = 14.sp)
                     }
-                }
-
-                RecipeHero(
-                    colors = colors,
-                    recipe = recipe,
-                    matchedIngredientCount = matchedIngredientCount,
-                    onClick = {
-                        onOpenRecipe(recipe)
-                    }
-                )
-            }
-        }
-
-        // ── 싱싱마켓 배너 ─────────────────────────────────────────────────────
-        item {
-            val shopBrand     = Color(0xFF2F6DB5)
-            val shopBrandSoft = Color(0xFFE4EDF7)
-            val shopBrandDeep = Color(0xFF1E4E85)
-
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Brush.linearGradient(listOf(shopBrandSoft, Color(0xFFD6E6F7))))
-                    .border(1.dp, shopBrand.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
-                    .clickable {
-                        val intent = Intent(context, com.eatda.app.ui.shop.ShopWebViewActivity::class.java)
-                        context.startActivity(intent)
-                    }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment    = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(shopBrand),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("🛒", fontSize = 20.sp)
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("싱싱마켓", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = shopBrandDeep)
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        "구매하면 냉장고 재고에 자동 추가",
-                        fontSize = 11.sp,
-                        color    = shopBrand.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(top = 2.dp),
+                        buildAnnotatedString {
+                            append("길민재 님의 ")
+                            pushStyle(SpanStyle(color = colors.accent))
+                            append("냉장고")
+                            pop()
+                        },
+                        fontSize   = if (sizes.fontBase >= 18) 25.sp else 23.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color      = colors.text,
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(shopBrand)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
+            }
+
+            // ── 통계 카드 ─────────────────────────────────────────────────────────
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text("바로가기 →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    StatCard(colors, total,    "보관 식재료", StatCardTone(fg = colors.accent,     bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
+                    StatCard(colors, warning,  "주의 필요",  StatCardTone(fg = colors.danger,     bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
+                    StatCard(colors, todayExp, "오늘 만료",  StatCardTone(fg = Color(0xFF9B6B1F), bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
                 }
             }
-        }
 
-        // ── 신선도 낮은 식품 구매 유도 ────────────────────────────────────────
-        item {
-            val nudgeItem = inventory
-                .filter { it.daysLeft() < 0 }
-                .maxByOrNull { it.daysLeft() }
-            nudgeItem?.let {
-                FreshnessNudgeBubble(colors = colors, item = it, context = context)
-                Spacer(Modifier.height(4.dp))
+            // ── 유통기한 만료 배너 ────────────────────────────────────────────────
+            item { ExpiredBannerItem(colors, expiredItems, onGoInv, onOpenItem) }
+
+            // ── 긴급 알림 ─────────────────────────────────────────────────────────
+            item { SectionHeader(colors, sizes, "긴급 알림", "${criticalItems.size}건의 처리가 필요해요", onMore = onGoNotif) }
+
+            items(criticalItems.take(3)) { item ->
+                UrgentRow(colors, item, onClick = { onOpenItem(item) })
+                Spacer(Modifier.height(8.dp))
             }
-        }
 
-        item { Spacer(Modifier.height(28.dp)) }
-    }
+            item { Spacer(Modifier.height(6.dp)) }
+
+            // ── 추천 레시피 ───────────────────────────────────────────────────────
+            item {
+                SectionHeader(
+                    colors,
+                    sizes,
+                    "오늘의 추천 레시피",
+                    "보유 재료 기반",
+                    onMore = onGoRecipes
+                )
+            }
+
+            item {
+                val recommended = recommendRecipes(
+                    inventory.map { it.name },
+                    recipes = recipes,
+                    inventory = inventory
+                )
+
+                recommended.firstOrNull()?.let { recipe ->
+
+                    // 현재 냉장고에 실제로 보유하고 있는 재료 개수
+                    val matchedIngredientCount = recipe.ingredients.count { ingredient ->
+                        inventory.any { item ->
+
+                            val recipeName = ingredient
+                                .trim()
+                                .replace(" ", "")
+                                .replace("　", "")
+
+                            val inventoryName = item.name
+                                .trim()
+                                .replace(" ", "")
+                                .replace("　", "")
+
+                            recipeName.contains(inventoryName) ||
+                                    inventoryName.contains(recipeName)
+                        }
+                    }
+
+                    RecipeHero(
+                        colors = colors,
+                        recipe = recipe,
+                        matchedIngredientCount = matchedIngredientCount,
+                        onClick = {
+                            onOpenRecipe(recipe)
+                        }
+                    )
+                }
+            }
+
+            // ── 싱싱마켓 배너 ─────────────────────────────────────────────────────
+            item {
+                val shopBrand     = Color(0xFF2F6DB5)
+                val shopBrandSoft = Color(0xFFE4EDF7)
+                val shopBrandDeep = Color(0xFF1E4E85)
+
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Brush.linearGradient(listOf(shopBrandSoft, Color(0xFFD6E6F7))))
+                        .border(1.dp, shopBrand.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                        .clickable {
+                            shopLauncher.launch(
+                                Intent(context, com.eatda.app.ui.shop.ShopWebViewActivity::class.java)
+                            )
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment    = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(shopBrand),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("🛒", fontSize = 20.sp)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("싱싱마켓", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = shopBrandDeep)
+                        Text(
+                            "구매하면 냉장고 재고에 자동 추가",
+                            fontSize = 11.sp,
+                            color    = shopBrand.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(shopBrand)
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text("바로가기 →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+
+            // ── 신선도 낮은 식품 구매 유도 ────────────────────────────────────────
+            item {
+                val nudgeItem = inventory
+                    .filter { it.daysLeft() < 0 }
+                    .maxByOrNull { it.daysLeft() }
+                nudgeItem?.let {
+                    FreshnessNudgeBubble(colors = colors, item = it, onOpenShop = {
+                        shopLauncher.launch(Intent(context, com.eatda.app.ui.shop.ShopWebViewActivity::class.java))
+                    })
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+
+            item { Spacer(Modifier.height(28.dp)) }
+        }
+    } // end Column (wraps banner + LazyColumn)
 
     // ── OCR 결과 다이얼로그 ───────────────────────────────────────────────────
     ocrResult?.let { result ->
@@ -377,12 +397,12 @@ private fun FullHomeScreen(
     }
 
     // ── 마켓 구매 도착 팝업 ───────────────────────────────────────────────────
-    if (marketArrivals.isNotEmpty()) {
+    if (sheetOpen) {
         MarketArrivalSheet(
             colors    = colors,
             items     = marketArrivals,
-            onDismiss = onDismissMarket,
-            onConfirm = onConfirmMarket,
+            onDismiss = { sheetOpen = false; onDismissMarket() },
+            onConfirm = { sheetOpen = false; onConfirmMarket() },
         )
     }
 }
@@ -665,7 +685,35 @@ private fun ExpiredBannerItem(
 }
 
 @Composable
-private fun FreshnessNudgeBubble(colors: EatdaColors, item: FoodItem, context: android.content.Context) {
+private fun DeliveryArrivalBanner(count: Int, colors: EatdaColors, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF2EC57E))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment    = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("📦", fontSize = 18.sp)
+        Text(
+            "싱싱마켓 배송 도착 · ${count}개",
+            fontSize   = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color      = Color.White,
+            modifier   = Modifier.weight(1f),
+        )
+        Text(
+            "확인하기 →",
+            fontSize   = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color      = Color.White.copy(alpha = 0.85f),
+        )
+    }
+}
+
+@Composable
+private fun FreshnessNudgeBubble(colors: EatdaColors, item: FoodItem, onOpenShop: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "nudge")
     val nudgeAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -685,11 +733,7 @@ private fun FreshnessNudgeBubble(colors: EatdaColors, item: FoodItem, context: a
             .fillMaxWidth()
             .offset(y = (-14).dp)
             .alpha(nudgeAlpha)
-            .clickable {
-                context.startActivity(
-                    Intent(context, com.eatda.app.ui.shop.ShopWebViewActivity::class.java)
-                )
-            },
+            .clickable { onOpenShop() },
     ) {
         // 위를 향하는 꼬리
         Canvas(
