@@ -251,6 +251,7 @@ private fun AppScreenContent(
                     marketArrivals  = state.marketArrivals,
                     onDismissMarket = vm::dismissMarketArrivals,
                     onConfirmMarket = vm::confirmMarketArrivals,
+                    onCheckDelivery = { vm.checkPendingDelivery() },
                 )
                 Screen.INVENTORY -> InventoryScreen(
                     colors = colors, sizes = sizes,
