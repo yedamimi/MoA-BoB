@@ -29,7 +29,7 @@ class ShopWebViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ShopWebViewScreen(onClose = { finish() })
+            ShopWebViewScreen(onClose = { setResult(RESULT_OK); finish() })
         }
     }
 }
@@ -129,7 +129,7 @@ private fun ShopWebViewScreen(onClose: () -> Unit) {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)          
+                .weight(1f)
                 .navigationBarsPadding(),
         )
     }
