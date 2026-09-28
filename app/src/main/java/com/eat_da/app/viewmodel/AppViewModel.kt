@@ -234,6 +234,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     "market" -> {
                         val item = parseInventoryItem(snapshot) ?: return
                         autoAddMarketItem(item)
+                        snapshot.ref.removeValue()
                     }
                     "webcam" -> {
                         val ts = snapshot.child("timestamp").getValue(Long::class.java) ?: 0L
@@ -252,6 +253,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun autoAddMarketItem(item: FoodItem, showToast: Boolean = true) {
+        if (_state.value.inventory.any { it.name == item.name }) return
         val key = "${item.name}_${System.currentTimeMillis()}"
         rootDb.child("MoA-BoB").child("foodInventory").child(key).setValue(
             mapOf(
@@ -770,7 +772,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val item = inv.firstOrNull { it.name == command.foodName }
                 if (item != null) {
                     val msg = if (command.qty != null)
-                        "${item.name} ${command.qty}${item.name.josa("을", "를")} 삭제할까요?"
+                        "${item.name} ${command.qty}개${item.name.josa("을", "를")} 삭제할까요?"
                     else
                         "${item.name}${item.name.josa("을", "를")} 삭제할까요?"
                     _state.update { it.copy(
@@ -786,17 +788,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             VoiceCommand.Confirm -> {
-                val item = _state.value.pendingDeleteItem ?: return
-                val msg = "${item.name}${item.name.josa("을", "를")} 삭제했습니다."
-                _state.update { s -> s.copy(
-                    inventory         = s.inventory.filter { it.id != item.id },
-                    webcamItems       = s.webcamItems.filter { it.id != item.id },
-                    pendingDeleteItem  = null,
-                    pendingDeleteQty   = null,
-                    pendingTts        = msg,
-                    lastVoiceResponse = msg,
-                    toast             = "${item.name} 삭제됨 🗑️",
-                )}
+                val item      = _state.value.pendingDeleteItem ?: return
+                val deleteQty = _state.value.pendingDeleteQty
+                val currentQtyNum = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 0
+                val unit          = item.qty.filter { !it.isDigit() }.trim()
+                val partialDelete = deleteQty != null && deleteQty < currentQtyNum
+
+                if (partialDelete) {
+                    val remaining = currentQtyNum - deleteQty!!
+                    val updated   = item.copy(qty = "$remaining$unit")
+                    _state.update { s -> s.copy(
+                        inventory         = s.inventory.map  { if (it.id == item.id) updated else it },
+                        webcamItems       = s.webcamItems.map { if (it.id == item.id) updated else it },
+                        pendingDeleteItem  = null,
+                        pendingDeleteQty   = null,
+                        pendingTts        = "${item.name} ${deleteQty}개${item.name.josa("을", "를")} 삭제했습니다. 남은 수량: ${remaining}개",
+                        lastVoiceResponse = "${item.name} ${deleteQty}개${item.name.josa("을", "를")} 삭제했습니다. 남은 수량: ${remaining}개",
+                        toast             = "${item.name} ${deleteQty}개 삭제됨 🗑️",
+                    )}
+                } else {
+                    _state.update { s -> s.copy(
+                        inventory         = s.inventory.filter  { it.id != item.id },
+                        webcamItems       = s.webcamItems.filter { it.id != item.id },
+                        pendingDeleteItem  = null,
+                        pendingDeleteQty   = null,
+                        pendingTts        = "${item.name}${item.name.josa("을", "를")} 삭제했습니다.",
+                        lastVoiceResponse = "${item.name}${item.name.josa("을", "를")} 삭제했습니다.",
+                        toast             = "${item.name} 삭제됨 🗑️",
+                    )}
+                }
             }
 
             VoiceCommand.Cancel -> {
