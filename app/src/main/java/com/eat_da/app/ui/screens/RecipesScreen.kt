@@ -31,6 +31,18 @@ import com.eatda.app.ui.theme.*
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 
+// ─────────────────────────────────────
+// 재료 수량 제거용 Regex
+//
+// 기존에는 재료를 비교할 때마다
+// Regex 객체를 새로 생성했음.
+// 이제 파일에서 한 번만 생성하여 재사용.
+// ─────────────────────────────────────
+
+private val INGREDIENT_QUANTITY_REGEX = Regex(
+    """\(?\d+(?:\.\d+)?(?:/\d+)?\s*(?:kg|g|mg|ml|l|개|모|팩|봉|장|대|통|구|병|캔|컵|인분)\)?$"""
+)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RecipesScreen(
@@ -88,9 +100,7 @@ fun RecipesScreen(
         fun removeQuantity(name: String): String {
             return name
                 .replace(
-                    Regex(
-                        """\(?\d+(?:\.\d+)?(?:/\d+)?\s*(?:kg|g|mg|ml|l|개|모|팩|봉|장|대|통|구|병|캔|컵|인분)\)?$"""
-                    ),
+                    INGREDIENT_QUANTITY_REGEX,
                     ""
                 )
                 .trim()
@@ -115,6 +125,8 @@ fun RecipesScreen(
     // 하나의 레시피에서
     // 현재 Firebase 재고와 일치하는
     // 재료가 몇 개인지 계산
+    //
+    // 기존 계산 방식 그대로 유지
     // ─────────────────────────────
 
     fun matchedIngredientCount(recipe: Recipe): Int {
@@ -131,37 +143,69 @@ fun RecipesScreen(
     }
 
     // ─────────────────────────────
-    // 추천 레시피
+    // 추천 레시피 계산
     //
-    // recipeFocusIngredient가 있으면
-    // 특정 재료를 눌러 들어온 상태이므로
-    // 해당 재료가 들어간 레시피를 보여줌.
-    //
-    // 일반 레시피 화면에서는
-    // 실제 Firebase 재고를 기반으로
-    // recommendRecipes()를 사용.
+    // 기존 remember 구조 유지
+    // recipes / inventory /
+    // recipeFocusIngredient가 실제로
+    // 변경될 때만 다시 계산
     // ─────────────────────────────
 
-    val recommended = if (recipeFocusIngredient != null) {
+    val recommended = remember(
+        recipes,
+        inventory,
+        recipeFocusIngredient
+    ) {
+        if (recipeFocusIngredient != null) {
 
-        recipes
-            .filter { recipe ->
-                recipe.ingredients.any { ingredient ->
-                    isIngredientMatched(
-                        ingredient,
-                        recipeFocusIngredient
-                    )
+            recipes
+                .filter { recipe ->
+                    recipe.ingredients.any { ingredient ->
+                        isIngredientMatched(
+                            ingredient,
+                            recipeFocusIngredient
+                        )
+                    }
                 }
-            }
-            .take(3)
+                .take(3)
 
-    } else {
+        } else {
 
-        recommendRecipes(
-            inventory.map { it.name },
-            recipes = recipes,
-            inventory = inventory
-        )
+            recommendRecipes(
+                inventory.map { it.name },
+                recipes = recipes,
+                inventory = inventory
+            )
+        }
+    }
+
+    // ─────────────────────────────
+    // 재료 개수 계산 캐시
+    //
+    // 기존에는 화면이 열릴 때
+    // recommended의 모든 레시피에 대해
+    // matchedIngredientCount()를
+    // 한꺼번에 실행했음.
+    //
+    // 이제는 카테고리 필터에서 실제로
+    // 필요한 경우에만 계산하고,
+    // 한 번 계산한 값은 다시 사용함.
+    //
+    // category 0(전체)에서는
+    // 재료 개수 계산 자체를 하지 않음.
+    // ─────────────────────────────
+
+    val matchedIngredientCounts = remember(
+        recommended,
+        inventory
+    ) {
+        mutableMapOf<String, Int>()
+    }
+
+    fun getMatchedIngredientCount(recipe: Recipe): Int {
+        return matchedIngredientCounts.getOrPut(recipe.id) {
+            matchedIngredientCount(recipe)
+        }
     }
 
     // ─────────────────────────────
@@ -172,7 +216,12 @@ fun RecipesScreen(
 
         // ─────────────────────────
         // 전체
+        //
+        // 기존과 동일하게
+        // 추가 재료 개수 계산 없이
+        // recommended 그대로 표시
         // ─────────────────────────
+
         0 -> recommended
 
         // ─────────────────────────
@@ -181,10 +230,11 @@ fun RecipesScreen(
         // 레시피에 필요한 재료를
         // 전부 현재 재고에서 가지고 있는 경우
         // ─────────────────────────
+
         1 -> recommended.filter { recipe ->
 
             recipe.ingredients.isNotEmpty() &&
-                    matchedIngredientCount(recipe) ==
+                    getMatchedIngredientCount(recipe) ==
                     recipe.ingredients.size
         }
 
@@ -194,10 +244,11 @@ fun RecipesScreen(
         // 4개 이상 가지고 있지만
         // 모든 재료를 가지고 있는 것은 아닌 경우
         // ─────────────────────────
+
         2 -> recommended.filter { recipe ->
 
             val matchedCount =
-                matchedIngredientCount(recipe)
+                getMatchedIngredientCount(recipe)
 
             matchedCount >= 4 &&
                     matchedCount < recipe.ingredients.size
@@ -206,10 +257,11 @@ fun RecipesScreen(
         // ─────────────────────────
         // 3개
         // ─────────────────────────
+
         3 -> recommended.filter { recipe ->
 
             val matchedCount =
-                matchedIngredientCount(recipe)
+                getMatchedIngredientCount(recipe)
 
             matchedCount == 3 &&
                     matchedCount < recipe.ingredients.size
@@ -218,10 +270,11 @@ fun RecipesScreen(
         // ─────────────────────────
         // 2개
         // ─────────────────────────
+
         4 -> recommended.filter { recipe ->
 
             val matchedCount =
-                matchedIngredientCount(recipe)
+                getMatchedIngredientCount(recipe)
 
             matchedCount == 2 &&
                     matchedCount < recipe.ingredients.size
@@ -230,10 +283,11 @@ fun RecipesScreen(
         // ─────────────────────────
         // 1개
         // ─────────────────────────
+
         5 -> recommended.filter { recipe ->
 
             val matchedCount =
-                matchedIngredientCount(recipe)
+                getMatchedIngredientCount(recipe)
 
             matchedCount == 1 &&
                     matchedCount < recipe.ingredients.size
