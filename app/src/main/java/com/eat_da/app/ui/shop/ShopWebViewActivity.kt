@@ -3,6 +3,8 @@ package com.eatda.app.ui.shop
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceResponse
+import androidx.webkit.WebViewAssetLoader
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -98,6 +100,14 @@ private fun ShopWebViewScreen(onClose: () -> Unit) {
         AndroidView(
             factory = { context ->
                 WebView(context).apply {
+
+                    val assetLoader = WebViewAssetLoader.Builder()
+                        .addPathHandler(
+                            "/assets/",
+                            WebViewAssetLoader.AssetsPathHandler(context)
+                        )
+                        .build()
+
                     settings.apply {
                         javaScriptEnabled                = true
                         domStorageEnabled                = true
@@ -106,25 +116,41 @@ private fun ShopWebViewScreen(onClose: () -> Unit) {
                         mixedContentMode =
                             android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     }
+
                     webViewClient = object : WebViewClient() {
+
+                        override fun shouldInterceptRequest(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): WebResourceResponse? {
+                            return request?.url?.let {
+                                assetLoader.shouldInterceptRequest(it)
+                            }
+                        }
+
                         override fun shouldOverrideUrlLoading(
                             view: WebView?,
                             request: WebResourceRequest?,
                         ): Boolean {
                             // eatda://close → 앱으로 복귀
                             if (request?.url?.scheme == "eatda") {
-                                onClose()   // finish()는 Composable 안에서 직접 호출 불가 → onClose 콜백 사용
+                                onClose()
                                 return true
                             }
                             return false
                         }
                     }
+
                     webChromeClient = object : WebChromeClient() {
-                        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                        override fun onProgressChanged(
+                            view: WebView?,
+                            newProgress: Int
+                        ) {
                             progress = newProgress
                         }
                     }
-                    loadUrl("file:///android_asset/shop.html")
+
+                    loadUrl("https://appassets.androidplatform.net/assets/shop.html")
                 }
             },
             modifier = Modifier

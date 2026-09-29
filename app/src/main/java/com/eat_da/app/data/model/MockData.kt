@@ -11,7 +11,7 @@ private fun dateAt(days: Int): LocalDate =
 val sampleInventory: List<FoodItem> = listOf(
     // Expired
     FoodItem(
-        13,
+        "13",
         "두부",
         FoodCategory.GRAIN,
         dateAt(-2),
@@ -20,7 +20,7 @@ val sampleInventory: List<FoodItem> = listOf(
         addedDays = 9
     ),
     FoodItem(
-        14,
+        "14",
         "우유",
         FoodCategory.DAIRY,
         dateAt(-1),
@@ -32,7 +32,7 @@ val sampleInventory: List<FoodItem> = listOf(
 
     // Critical
     FoodItem(
-        1,
+        "1",
         "닭가슴살",
         FoodCategory.MEAT,
         dateAt(1),
@@ -41,7 +41,7 @@ val sampleInventory: List<FoodItem> = listOf(
         addedDays = 4
     ),
     FoodItem(
-        2,
+        "2",
         "두부",
         FoodCategory.GRAIN,
         dateAt(0),
@@ -50,7 +50,7 @@ val sampleInventory: List<FoodItem> = listOf(
         addedDays = 5
     ),
     FoodItem(
-        3,
+        "3",
         "딸기",
         FoodCategory.FRUIT,
         dateAt(2),
@@ -61,7 +61,7 @@ val sampleInventory: List<FoodItem> = listOf(
 
     // Warning
     FoodItem(
-        4,
+        "4",
         "우유",
         FoodCategory.DAIRY,
         dateAt(4),
@@ -71,7 +71,7 @@ val sampleInventory: List<FoodItem> = listOf(
         isAllergen = true
     ),
     FoodItem(
-        5,
+        "5",
         "계란",
         FoodCategory.DAIRY,
         dateAt(6),
@@ -81,7 +81,7 @@ val sampleInventory: List<FoodItem> = listOf(
         isAllergen = true
     ),
     FoodItem(
-        6,
+        "6",
         "양배추",
         FoodCategory.VEGETABLE,
         dateAt(5),
@@ -90,7 +90,7 @@ val sampleInventory: List<FoodItem> = listOf(
         addedDays = 6
     ),
     FoodItem(
-        7,
+        "7",
         "대파",
         FoodCategory.VEGETABLE,
         dateAt(3),
@@ -101,7 +101,7 @@ val sampleInventory: List<FoodItem> = listOf(
 
     // Fresh
     FoodItem(
-        8,
+        "8",
         "연어",
         FoodCategory.SEAFOOD,
         dateAt(2),
@@ -110,7 +110,7 @@ val sampleInventory: List<FoodItem> = listOf(
         addedDays = 1
     ),
     FoodItem(
-        9,
+        "9",
         "브로콜리",
         FoodCategory.VEGETABLE,
         dateAt(8),
@@ -119,7 +119,7 @@ val sampleInventory: List<FoodItem> = listOf(
         addedDays = 1
     ),
     FoodItem(
-        10,
+        "10",
         "사과",
         FoodCategory.FRUIT,
         dateAt(12),
@@ -128,7 +128,7 @@ val sampleInventory: List<FoodItem> = listOf(
         addedDays = 2
     ),
     FoodItem(
-        11,
+        "11",
         "간장",
         FoodCategory.SAUCE,
         dateAt(180),
@@ -137,7 +137,7 @@ val sampleInventory: List<FoodItem> = listOf(
         addedDays = 30
     ),
     FoodItem(
-        12,
+        "12",
         "쌀",
         FoodCategory.GRAIN,
         dateAt(60),

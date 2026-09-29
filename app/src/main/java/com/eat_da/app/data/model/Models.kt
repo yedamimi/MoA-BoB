@@ -14,7 +14,7 @@ enum class FoodCategory(val label: String, val hexColor: Long) {
 }
 
 data class FoodItem(
-    val id: Int,
+    val id:  String,
     val name: String,
     val category: FoodCategory,
     val expiry: LocalDate,
