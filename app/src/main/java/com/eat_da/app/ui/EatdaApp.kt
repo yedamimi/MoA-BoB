@@ -185,10 +185,17 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 item           = item,
                 sheetState     = itemSheetState,
                 onDismiss      = vm::closeItem,
-                onUpdateExpiry = { newExpiry -> vm.updateItemExpiry(item.id, newExpiry) },
-                onUpdateQty    = { newQty    -> vm.updateItemQty(item.id, newQty) },
+                onUpdateExpiry = { newExpiry ->
+                    vm.updateItemExpiry(item.id, newExpiry)
+                },
+                onUpdateQty = { newQty ->
+                    vm.updateItemQty(item.id, newQty)
+                },
                 onRecipeRecommend = { foodName ->
                     vm.openRecipeRecommendations(foodName)
+                },
+                onDelete = {
+                    vm.deleteInventoryItem(item.id)
                 },
             )
         }

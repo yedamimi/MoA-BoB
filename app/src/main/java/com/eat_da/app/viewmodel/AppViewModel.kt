@@ -712,6 +712,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
+
+    fun deleteInventoryItem(itemId: String) {
+        val inventoryRef = rootDb
+            .child("MoA-BoB")
+            .child("foodInventory")
+            .child(itemId)
+
+        inventoryRef.removeValue()
+            .addOnSuccessListener {
+                _state.update { s ->
+                    s.copy(
+                        inventory = s.inventory.filter { it.id != itemId },
+                        openItem = if (s.openItem?.id == itemId) null else s.openItem,
+                        toast = "재고가 삭제됐어요 🗑️",
+                    )
+                }
+            }
+            .addOnFailureListener {
+                _state.update { s ->
+                    s.copy(
+                        toast = "재고 삭제에 실패했어요."
+                    )
+                }
+            }
+    }
+
     // ── 음성 명령 처리 ────────────────────────────────────────────────────────
 
     fun handleVoiceCommand(command: VoiceCommand) {
