@@ -220,13 +220,6 @@ private fun FullHomeScreen(
             // ── 인사말 + 제목 ─────────────────────────────────────────────────────
             item {
                 Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
-                    Row(
-                        verticalAlignment    = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text("안녕하세요", fontSize = 13.sp, color = colors.textMuted, fontWeight = FontWeight.Medium)
-                        Text("👋", fontSize = 14.sp)
-                    }
                     Spacer(Modifier.height(4.dp))
                     Text(
                         buildAnnotatedString {
