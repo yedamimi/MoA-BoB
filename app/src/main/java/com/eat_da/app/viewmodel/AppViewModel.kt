@@ -22,6 +22,7 @@ import java.time.LocalDate
 import androidx.lifecycle.viewModelScope
 import com.eatda.app.data.api.RecipeApiService
 import kotlinx.coroutines.launch
+import com.eatda.app.data.FoodCategoryMapper
 
 // ── 열거형 ────────────────────────────────────────────────────────────────────
 
@@ -782,7 +783,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         id = "${System.currentTimeMillis()}_${cmd.name.hashCode()}",
                         name       = cmd.name,
                         qty        = cmd.qty,
-                        category   = FoodCategory.GRAIN,
+                        category   = FoodCategoryMapper.getCategory(cmd.name),
                         expiry     = expiry,
                         location   = "냉장고",
                         addedDays  = 0,
@@ -819,7 +820,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     id = System.currentTimeMillis().toString(),
                     name      = command.name,
                     qty       = command.qty,
-                    category  = FoodCategory.GRAIN,
+                    category  = FoodCategoryMapper.getCategory(command.name),
                     expiry    = expiry,
                     location  = "냉장고",
                     addedDays = 0,
