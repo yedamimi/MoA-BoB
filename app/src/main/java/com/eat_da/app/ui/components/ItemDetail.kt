@@ -413,57 +413,6 @@ fun ItemDetailSheet(
                 }
             }
 
-            // ── 보관 가이드 ───────────────────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(colors.accentSoft)
-                    .clickable {
-                        showStorageGuide = true
-                    }
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        EatdaIcon(
-                            EatdaIcons.Sparkle,
-                            tint = colors.accentDeep,
-                            size = 14.dp
-                        )
-
-                        Text(
-                            "맞춤 보관 가이드",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.accentDeep
-                        )
-                    }
-
-                    Text(
-                        "›",
-                        fontSize = 20.sp,
-                        color = colors.accentDeep
-                    )
-                }
-
-                Text(
-                    text = storageGuideSummary(item.name),
-                    fontSize = 13.sp,
-                    color = colors.text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
             // ── 재고 삭제 버튼 ────────────────────────────────────────────────
             Box(
                 modifier = Modifier
@@ -490,63 +439,27 @@ fun ItemDetailSheet(
             }
 
             // ── 하단 버튼 ─────────────────────────────────────────────────────
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(top = 6.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.surface)
+                    .border(
+                        1.dp,
+                        colors.border,
+                        RoundedCornerShape(12.dp)
+                    )
+                    .clickable(onClick = onDismiss)
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.surface)
-                        .border(
-                            1.dp,
-                            colors.border,
-                            RoundedCornerShape(12.dp)
-                        )
-                        .clickable(onClick = onDismiss)
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "닫기",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.text
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .weight(2f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.accent)
-                        .clickable {
-                            onRecipeRecommend(item.name)
-                        }
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    EatdaIcon(
-                        EatdaIcons.Leaf,
-                        tint = Color.White,
-                        size = 16.dp
-                    )
-
-                    Spacer(
-                        Modifier.width(6.dp)
-                    )
-
-                    Text(
-                        "레시피 추천",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+                Text(
+                    "닫기",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.text
+                )
             }
         }
     }

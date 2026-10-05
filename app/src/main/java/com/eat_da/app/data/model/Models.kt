@@ -11,6 +11,7 @@ enum class FoodCategory(val label: String, val hexColor: Long) {
     GRAIN("곡물", 0xFFA88560),
     BEVERAGE("음료", 0xFF7A6BA8),
     SAUCE("소스", 0xFF9B8043),
+    PROCESSED("가공식품", 0xFF8A6F5A),
 }
 
 data class FoodItem(

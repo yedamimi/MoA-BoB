@@ -62,6 +62,7 @@ private val DEFAULT_SHELF_DAYS: Map<String, Long> = mapOf(
     "소고기" to 3L, "생선" to 2L,
 )
 
+
 // ── 상태 ──────────────────────────────────────────────────────────────────────
 
 data class AppState(

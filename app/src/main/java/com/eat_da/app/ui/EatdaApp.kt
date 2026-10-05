@@ -47,6 +47,9 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
     BackHandler(enabled = state.screen == Screen.RECIPE_DETAIL) {
         vm.closeRecipe()
     }
+    BackHandler(enabled = state.screen == Screen.INVENTORY) {
+        vm.navigate(Screen.HOME)
+    }
 
 
     val colors = when {
@@ -261,9 +264,13 @@ private fun AppScreenContent(
                     onCheckDelivery = { vm.checkPendingDelivery() },
                 )
                 Screen.INVENTORY -> InventoryScreen(
-                    colors = colors, sizes = sizes,
+                    colors = colors,
+                    sizes = sizes,
                     inventory = state.inventory,
                     onOpenItem = vm::openItem,
+                    onRecipeRecommend = { foodName ->
+                        vm.openRecipeRecommendations(foodName)
+                    },
                 )
                 Screen.NOTIFICATIONS -> NotificationsScreen(
                     colors = colors,

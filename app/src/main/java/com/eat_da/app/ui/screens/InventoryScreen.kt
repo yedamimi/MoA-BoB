@@ -21,6 +21,11 @@ import com.eatda.app.data.*
 import com.eatda.app.data.model.*
 import com.eatda.app.ui.components.*
 import com.eatda.app.ui.theme.*
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.Surface
 
 private enum class InvFilter(val label: String) {
     ALL("전체"),
@@ -32,6 +37,7 @@ private enum class InvFilter(val label: String) {
     DAIRY("유제품"),
     FRUIT("과일"),
     SEAFOOD("해산물"),
+    PROCESSED("가공식품"),
 }
 
 // 화면 표시용 수량 숫자 추출
@@ -50,7 +56,8 @@ fun InventoryScreen(
     sizes: EatdaSizes,
     inventory: List<FoodItem>,
     onOpenItem: (FoodItem) -> Unit,
-) {
+    onRecipeRecommend: (String) -> Unit,
+    ) {
     var filter by remember { mutableStateOf(InvFilter.ALL) }
     var query by remember { mutableStateOf("") }
 
@@ -58,6 +65,10 @@ fun InventoryScreen(
     // 값이 있으면 해당 식재료의 유통기한별 재고 화면
     var selectedFoodName by remember {
         mutableStateOf<String?>(null)
+    }
+
+    BackHandler(enabled = selectedFoodName != null) {
+        selectedFoodName = null
     }
 
     // 식재료별 재고 화면
@@ -69,7 +80,8 @@ fun InventoryScreen(
             onBack = {
                 selectedFoodName = null
             },
-            onOpenItem = onOpenItem
+            onOpenItem = onOpenItem,
+            onRecipeRecommend = onRecipeRecommend,
         )
 
         return
@@ -112,6 +124,9 @@ fun InventoryScreen(
 
                 InvFilter.SEAFOOD ->
                     item.category == FoodCategory.SEAFOOD
+
+                InvFilter.PROCESSED ->
+                    item.category == FoodCategory.PROCESSED
             }
         }
         .filter {
@@ -446,7 +461,11 @@ private fun InventoryGroupView(
     inventory: List<FoodItem>,
     onBack: () -> Unit,
     onOpenItem: (FoodItem) -> Unit,
+    onRecipeRecommend: (String) -> Unit,
 ) {
+    var showStorageGuide by remember {
+        mutableStateOf(false)
+    }
 
     // 같은 이름의 원본 FoodItem만 가져옴
     // 여기서는 그룹화하지 않음.
@@ -595,6 +614,124 @@ private fun InventoryGroupView(
             }
 
             // ─────────────────────────────
+// 맞춤 보관 가이드
+// ─────────────────────────────
+
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.accentSoft)
+                        .clickable {
+                            showStorageGuide = true
+                        }
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            EatdaIcon(
+                                EatdaIcons.Sparkle,
+                                tint = colors.accentDeep,
+                                size = 16.dp
+                            )
+
+                            Text(
+                                text = "맞춤 보관 가이드",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.accentDeep
+                            )
+                        }
+
+                        Text(
+                            text = "자세히 보기  ›",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.accentDeep
+                        )
+                    }
+
+                    Text(
+                        text = storageGuideSummary(foodName),
+                        fontSize = 13.sp,
+                        color = colors.text
+                    )
+                }
+            }
+
+            // ─────────────────────────────
+// 레시피 추천
+// ─────────────────────────────
+
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.surface)
+                        .border(
+                            1.dp,
+                            colors.border,
+                            RoundedCornerShape(14.dp)
+                        )
+                        .clickable {
+                            onRecipeRecommend(foodName)
+                        }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.accentSoft),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        EatdaIcon(
+                            EatdaIcons.Sparkle,
+                            tint = colors.accentDeep,
+                            size = 18.dp
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        Text(
+                            text = "$foodName 레시피 추천",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.text
+                        )
+
+                        Text(
+                            text = "보유 재료를 활용한 레시피를 확인해보세요.",
+                            fontSize = 12.sp,
+                            color = colors.textMuted
+                        )
+                    }
+
+                    Text(
+                        text = "추천 보기  ›",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.accentDeep
+                    )
+                }
+            }
+
+            // ─────────────────────────────
             // 유통기한별 재고 제목
             // ─────────────────────────────
 
@@ -643,6 +780,127 @@ private fun InventoryGroupView(
             }
         }
     }
+    // ─────────────────────────────
+    // 맞춤 보관 가이드 팝업
+    // ─────────────────────────────
+    if (showStorageGuide) {
+        Dialog(
+            onDismissRequest = {
+                showStorageGuide = false
+            },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false
+            ),
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .width(320.dp)
+                        .heightIn(
+                            min = 300.dp,
+                            max = 420.dp
+                        )
+                        .border(
+                            1.dp,
+                            colors.border,
+                            RoundedCornerShape(20.dp)
+                        ),
+                    shape = RoundedCornerShape(20.dp),
+                    color = colors.bg,
+                    shadowElevation = 12.dp,
+                    tonalElevation = 6.dp,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.accentSoft),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                EatdaIcon(
+                                    EatdaIcons.Sparkle,
+                                    tint = colors.accentDeep,
+                                    size = 20.dp
+                                )
+                            }
+
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    "맞춤 보관 가이드",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = colors.text
+                                )
+
+                                Text(
+                                    "${foodEmoji[foodName] ?: ""} $foodName",
+                                    fontSize = 12.sp,
+                                    color = colors.textMuted,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        HorizontalDivider(
+                            color = colors.border
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                storageGuide(foodName),
+                                fontSize = 14.sp,
+                                lineHeight = 23.sp,
+                                color = colors.text
+                            )
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(colors.accent)
+                                .clickable {
+                                    showStorageGuide = false
+                                }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "확인",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 
@@ -673,16 +931,11 @@ private fun InventoryGroupItemRow(
                 colors.danger
             )
 
-        ExpiryStatus.WARNING ->
+        ExpiryStatus.WARNING,
+        ExpiryStatus.SOON ->
             Pair(
                 colors.warningSoft,
                 Color(0xFF9B6B1F)
-            )
-
-        ExpiryStatus.SOON ->
-            Pair(
-                colors.infoSoft,
-                colors.info
             )
 
         ExpiryStatus.FRESH ->
@@ -810,16 +1063,11 @@ fun InventoryRow(
                 colors.danger
             )
 
-        ExpiryStatus.WARNING ->
+        ExpiryStatus.WARNING,
+        ExpiryStatus.SOON ->
             Pair(
                 colors.warningSoft,
                 Color(0xFF9B6B1F)
-            )
-
-        ExpiryStatus.SOON ->
-            Pair(
-                colors.infoSoft,
-                colors.info
             )
 
         ExpiryStatus.FRESH ->
