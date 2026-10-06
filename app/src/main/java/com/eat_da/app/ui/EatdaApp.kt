@@ -50,6 +50,17 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
     BackHandler(enabled = state.screen == Screen.INVENTORY) {
         vm.navigate(Screen.HOME)
     }
+    BackHandler(enabled = state.screen == Screen.NOTIFICATIONS) {
+        vm.navigate(Screen.HOME)
+    }
+
+    BackHandler(enabled = state.screen == Screen.RECIPES) {
+        if (state.recipeFocusIngredient != null) {
+            vm.navigate(Screen.INVENTORY)
+        } else {
+            vm.navigate(Screen.HOME)
+        }
+    }
 
 
     val colors = when {
