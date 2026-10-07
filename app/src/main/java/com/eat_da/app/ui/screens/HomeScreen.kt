@@ -280,7 +280,6 @@ private fun FullHomeScreen(
 
                 recommended.firstOrNull()?.let { recipe ->
 
-                    // 현재 냉장고에 실제로 보유하고 있는 재료 개수
                     val matchedIngredientCount = recipe.ingredients.count { ingredient ->
                         inventory.any { item ->
 
@@ -377,7 +376,7 @@ private fun FullHomeScreen(
 
             item { Spacer(Modifier.height(28.dp)) }
         }
-    } // end Column (wraps banner + LazyColumn)
+    }
 
     // ── OCR 결과 다이얼로그 ───────────────────────────────────────────────────
     ocrResult?.let { result ->
@@ -441,16 +440,16 @@ private fun UrgentRow(colors: EatdaColors, item: FoodItem, onClick: () -> Unit) 
             Text(foodEmoji[item.name] ?: item.name.first().toString(), fontSize = 18.sp)
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text("${item.name} — ${item.formatExpiry()}", fontSize = 14.sp, fontWeight = FontWeight.Bold,   color = colors.text)
-            Text(item.qty,                                fontSize = 11.sp, color = colors.textMuted, modifier = Modifier.padding(top = 1.dp))
+            Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.text)
+            Text(item.qty,  fontSize = 11.sp, color = colors.textMuted, modifier = Modifier.padding(top = 1.dp))
         }
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(badgeBg)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 12.dp, vertical = 7.dp),
         ) {
-            Text(expiryText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = badgeFg)
+            Text(expiryText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = badgeFg)
         }
     }
 }
@@ -728,7 +727,6 @@ private fun FreshnessNudgeBubble(colors: EatdaColors, item: FoodItem, onOpenShop
             .alpha(nudgeAlpha)
             .clickable { onOpenShop() },
     ) {
-        // 위를 향하는 꼬리
         Canvas(
             modifier = Modifier
                 .padding(start = 20.dp)
@@ -750,7 +748,6 @@ private fun FreshnessNudgeBubble(colors: EatdaColors, item: FoodItem, onOpenShop
             drawPath(inner, color = bubbleColor)
         }
 
-        // 말풍선 본체
         Row(
             modifier = Modifier
                 .fillMaxWidth()
