@@ -441,15 +441,20 @@ private fun UrgentRow(colors: EatdaColors, item: FoodItem, onClick: () -> Unit) 
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.text)
-            Text(item.qty,  fontSize = 11.sp, color = colors.textMuted, modifier = Modifier.padding(top = 1.dp))
+            Text(
+                "${item.qty} · ${item.expiry.toString().replace("-", ".")}",
+                fontSize = 11.sp,
+                color = colors.textMuted,
+                modifier = Modifier.padding(top = 1.dp)
+            )
         }
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(7.dp))
                 .background(badgeBg)
-                .padding(horizontal = 12.dp, vertical = 7.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp),
         ) {
-            Text(expiryText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = badgeFg)
+            Text(expiryText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = badgeFg)
         }
     }
 }
