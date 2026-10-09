@@ -22,6 +22,7 @@ import com.eatda.app.ui.components.EatdaIcons
 import com.eatda.app.ui.theme.EatdaColors
 import com.eatda.app.ui.theme.EatdaSizes
 
+
 @Composable
 fun RecipeDetailScreen(
     colors: EatdaColors,
@@ -148,20 +149,54 @@ fun RecipeDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
 
-                recipe.ingredients.forEach { ingredient ->
+                recipe.ingredients.chunked(2).forEach { rowIngredients ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        repeat(2) { index ->
+                            Box(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (index < rowIngredients.size) {
+                                    val ingredient = rowIngredients[index]
 
-                    Text(
-                        buildString {
-                            val emoji = foodEmoji[ingredient]
-                            if (emoji != null) {
-                                append("$emoji ")
+                                    // 예: "연어(100g)" → "연어" / "100g"
+                                    val match = Regex("""^(.*)\(([^()]*)\)$""")
+                                        .find(ingredient)
+
+                                    val name = match?.groupValues?.get(1)?.trim()
+                                        ?: ingredient
+
+                                    val amount = match?.groupValues?.get(2)?.trim()
+                                        ?: ""
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = name,
+                                            fontSize = 13.sp,
+                                            color = colors.text
+                                        )
+
+                                        if (amount.isNotBlank()) {
+                                            Text(
+                                                text = amount,
+                                                fontSize = 13.sp,
+                                                color = colors.textMuted
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                            append(ingredient)
-                        },
-                        fontSize = 13.sp,
-                        color = colors.text
-                    )
+                        }
+                    }
                 }
+
+
             }
         }
 
