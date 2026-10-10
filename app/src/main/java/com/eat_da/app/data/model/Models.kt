@@ -24,6 +24,7 @@ data class FoodItem(
     val location: String,
     val addedDays: Int,
     val isAllergen: Boolean = false,
+    val hasRemnant: Boolean = false,
 ) {
     fun daysLeft(today: LocalDate = LocalDate.now()): Int =
         (expiry.toEpochDay() - today.toEpochDay()).toInt()
