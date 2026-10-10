@@ -47,20 +47,6 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
     BackHandler(enabled = state.screen == Screen.RECIPE_DETAIL) {
         vm.closeRecipe()
     }
-    BackHandler(enabled = state.screen == Screen.INVENTORY) {
-        vm.navigate(Screen.HOME)
-    }
-    BackHandler(enabled = state.screen == Screen.NOTIFICATIONS) {
-        vm.navigate(Screen.HOME)
-    }
-
-    BackHandler(enabled = state.screen == Screen.RECIPES) {
-        if (state.recipeFocusIngredient != null) {
-            vm.navigate(Screen.INVENTORY)
-        } else {
-            vm.navigate(Screen.HOME)
-        }
-    }
 
 
     val colors = when {
@@ -195,22 +181,15 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
 
         state.openItem?.let { item ->
             ItemDetailSheet(
-                colors         = colors,
-                item           = item,
-                sheetState     = itemSheetState,
-                onDismiss      = vm::closeItem,
-                onUpdateExpiry = { newExpiry ->
-                    vm.updateItemExpiry(item.id, newExpiry)
-                },
-                onUpdateQty = { newQty ->
-                    vm.updateItemQty(item.id, newQty)
-                },
-                onRecipeRecommend = { foodName ->
-                    vm.openRecipeRecommendations(foodName)
-                },
-                onDelete = {
-                    vm.deleteInventoryItem(item.id)
-                },
+                colors            = colors,
+                item              = item,
+                sheetState        = itemSheetState,
+                onDismiss         = vm::closeItem,
+                onUpdateExpiry    = { newExpiry -> vm.updateItemExpiry(item.id, newExpiry) },
+                onUpdateQty       = { newQty    -> vm.updateItemQty(item.id, newQty) },
+                onRecipeRecommend = { foodName  -> vm.openRecipeRecommendations(foodName) },
+                onToggleRemnant   = { vm.toggleRemnant(item.id) },
+                onDelete          = { vm.deleteInventoryItem(item.id) },
             )
         }
 
@@ -275,13 +254,10 @@ private fun AppScreenContent(
                     onCheckDelivery = { vm.checkPendingDelivery() },
                 )
                 Screen.INVENTORY -> InventoryScreen(
-                    colors = colors,
-                    sizes = sizes,
+                    colors = colors, sizes = sizes,
                     inventory = state.inventory,
                     onOpenItem = vm::openItem,
-                    onRecipeRecommend = { foodName ->
-                        vm.openRecipeRecommendations(foodName)
-                    },
+                    onRecipeRecommend = { foodName -> vm.openRecipeRecommendations(foodName) },
                 )
                 Screen.NOTIFICATIONS -> NotificationsScreen(
                     colors = colors,
