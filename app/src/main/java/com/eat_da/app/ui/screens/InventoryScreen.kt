@@ -1,3 +1,4 @@
+
 package com.eatda.app.ui.screens
 
 import androidx.compose.foundation.*
@@ -57,7 +58,7 @@ fun InventoryScreen(
     inventory: List<FoodItem>,
     onOpenItem: (FoodItem) -> Unit,
     onRecipeRecommend: (String) -> Unit,
-    ) {
+) {
     var filter by remember { mutableStateOf(InvFilter.ALL) }
     var query by remember { mutableStateOf("") }
 
@@ -156,8 +157,9 @@ fun InventoryScreen(
             representative.copy(
                 qty = "${totalQty}개",
 
-                // 같은 이름 중 하나라도 알레르기라면 대표 카드에 표시
-                isAllergen = items.any { it.isAllergen }
+                // 같은 이름 중 하나라도 알레르기 또는 자투리로 표시되면 대표 카드에 표시
+                isAllergen = items.any { it.isAllergen },
+                hasRemnant = items.any { it.hasRemnant }
             )
         }
         .sortedBy { it.daysLeft() }
@@ -1164,6 +1166,23 @@ fun InventoryRow(
                         )
                     }
                 }
+
+                // 자투리 표시: 앱 메모리에 설정된 상태를 전체 재고목록에도 표시
+                if (item.hasRemnant) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFFFF3CD))
+                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            "🥄 자투리",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF9B6B00)
+                        )
+                    }
+                }
             }
 
             Text(
@@ -1203,14 +1222,20 @@ fun InventoryRow(
                 )
             }
 
-            if (item.freshness != null) {
 
+            if (item.freshness != null) {
                 Text(
-                    "신선도 ${item.freshness}%",
+                    text = when {
+                        item.freshness < 0 -> "신선도 미분석"
+                        item.freshness >= 70 -> "신선 (신선도 ${item.freshness}%)"
+                        item.freshness > 30 -> "보통 (신선도 ${item.freshness}%)"
+                        else -> "부패 (신선도 ${item.freshness}%)"
+                    },
                     fontSize = 10.sp,
                     color = colors.textFaint,
                 )
             }
+
         }
     }
 }

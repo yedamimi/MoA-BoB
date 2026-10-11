@@ -63,7 +63,6 @@ private val DEFAULT_SHELF_DAYS: Map<String, Long> = mapOf(
     "소고기" to 3L, "생선" to 2L,
 )
 
-
 // ── 상태 ──────────────────────────────────────────────────────────────────────
 
 data class AppState(
@@ -100,6 +99,31 @@ data class AppState(
     val addedItems: List<FoodItem> = emptyList(), // 이번 세션에 추가한 항목 (오버레이 표시용)
 )
 
+// ── qty 파싱 헬퍼 (숫자/문자열 둘 다 대응) ─────────────────────────────────────
+
+// Firebase qty 필드가 숫자(3)든 문자열("3개")이든 정수만 뽑아냄
+private fun DataSnapshot.qtyNumber(default: Int = 0): Int =
+    when (val v = child("qty").value) {
+        is Number -> v.toInt()
+        is String -> v.filter { it.isDigit() }.toIntOrNull() ?: default
+        else      -> default
+    }
+
+// "3개" 형태의 표시용 문자열 생성. unit 필드가 있으면 우선 사용
+private fun DataSnapshot.qtyText(defaultUnit: String = "개"): String {
+    val unitField = child("unit").getValue(String::class.java)
+    return when (val v = child("qty").value) {
+        is Number -> "${v.toInt()}${unitField ?: defaultUnit}"
+        is String -> {
+            val num  = v.filter { it.isDigit() }
+            val unit = v.filter { !it.isDigit() }.trim()
+            if (num.isEmpty()) "1${unitField ?: defaultUnit}"
+            else "$num${unit.ifBlank { unitField ?: defaultUnit }}"
+        }
+        else -> "1${unitField ?: defaultUnit}"
+    }
+}
+
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -117,6 +141,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingDeliveryListener:   ValueEventListener? = null
     private var householdMemberListener:   ValueEventListener? = null
     private var allergenHapticFired = false
+
+    // 자투리 상태는 현재 앱 실행 중에만 유지하며 Firebase에는 저장하지 않습니다.
+    private val remnantItemIds = mutableSetOf<String>()
 
     private val listenerStartTime = System.currentTimeMillis()
 
@@ -147,41 +174,87 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun listenToInventory() {
         inventoryListener = object : ValueEventListener {
+
             override fun onDataChange(snapshot: DataSnapshot) {
                 val dbItems = snapshot.children.mapNotNull { child ->
                     runCatching {
-                        val name      = child.child("name").getValue(String::class.java) ?: return@runCatching null
-                        val catStr    = child.child("category").getValue(String::class.java) ?: "GRAIN"
-                        val expiryStr = child.child("expiry").getValue(String::class.java) ?: LocalDate.now().toString()
-                        val expiry    = runCatching { LocalDate.parse(expiryStr) }.getOrDefault(LocalDate.now())
-                        val qty       = child.child("qty").getValue(Int::class.java) ?: 1
-                        val unit      = child.child("unit").getValue(String::class.java) ?: "개"
-                        val location  = child.child("location").getValue(String::class.java) ?: "냉장고"
-                        val allergen  = child.child("isAllergen").getValue(Boolean::class.java) ?: false
+                        val name = child.child("name")
+                            .getValue(String::class.java)
+                            ?: return@runCatching null
+
+                        val catStr = child.child("category")
+                            .getValue(String::class.java) ?: "GRAIN"
+
+                        val expiryStr = child.child("expiry")
+                            .getValue(String::class.java)
+                            ?: LocalDate.now().toString()
+
+                        val expiry = runCatching {
+                            LocalDate.parse(expiryStr)
+                        }.getOrDefault(LocalDate.now())
+
+                        val location = child.child("location")
+                            .getValue(String::class.java) ?: "냉장고"
+
+                        val allergen = child.child("isAllergen")
+                            .getValue(Boolean::class.java) ?: false
+
+                        val itemId = child.key ?: return@runCatching null
+                        val remnant = synchronized(remnantItemIds) { itemId in remnantItemIds }
 
                         FoodItem(
-                            id         = child.key ?: return@runCatching null,
-                            name       = name,
-                            category   = runCatching { FoodCategory.valueOf(catStr) }.getOrDefault(FoodCategory.GRAIN),
-                            expiry     = expiry,
-                            qty        = "$qty$unit",
-                            location   = location,
-                            addedDays  = 0,
+                            id = itemId,
+                            name = name,
+                            category = runCatching {
+                                FoodCategory.valueOf(catStr)
+                            }.getOrDefault(FoodCategory.GRAIN),
+                            expiry = expiry,
+                            qty = child.qtyText(),
+                            location = location,
+                            addedDays = 0,
                             isAllergen = allergen,
+                            hasRemnant = remnant,
+                            freshness = (child.child("freshness").value as? Number)?.toInt(),
+                            freshnessClass = child.child("freshnessClass")
+                                .getValue(String::class.java),
+                            freshnessConf = (child.child("freshnessConf").value as? Number)?.toDouble(),
                         )
                     }.getOrNull()
                 }
-                val webcam   = _state.value.webcamItems
-                val combined = dbItems + webcam.filter { w -> dbItems.none { it.name == w.name } }
-                val notifs   = buildNotifications(combined, _state.value.settings, _state.value.allergens)
-                _state.update { it.copy(inventory = combined, notifications = notifs, firebaseConnected = true) }
+
+                val webcam = _state.value.webcamItems
+
+                val combined = dbItems + webcam.filter { w ->
+                    dbItems.none { it.name == w.name }
+                }
+
+                val notifs = buildNotifications(
+                    combined,
+                    _state.value.settings,
+                    _state.value.allergens
+                )
+
+                _state.update {
+                    it.copy(
+                        inventory = combined,
+                        notifications = notifs,
+                        firebaseConnected = true
+                    )
+                }
             }
+
             override fun onCancelled(error: DatabaseError) {
-                _state.update { it.copy(firebaseConnected = false) }
+                _state.update {
+                    it.copy(firebaseConnected = false)
+                }
             }
         }
-        rootDb.child("MoA-BoB").child("foodInventory").addValueEventListener(inventoryListener!!)
+
+        rootDb.child("MoA-BoB")
+            .child("foodInventory")
+            .addValueEventListener(inventoryListener!!)
     }
+
 
     private fun listenToScanResults() {
         scanResultsListener = object : ValueEventListener {
@@ -259,56 +332,62 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun autoAddMarketItem(item: FoodItem, showToast: Boolean = true) {
         val inventoryRef = rootDb.child("MoA-BoB").child("foodInventory")
 
-        val qty = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
-        val unit = item.qty.filter { !it.isDigit() }.ifBlank { "개" }
+        val qty    = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
+        val unit   = item.qty.filter { !it.isDigit() }.trim().ifBlank { "개" }
         val expiry = item.expiry.toString()
 
         inventoryRef.get().addOnSuccessListener { snapshot ->
-
             // 같은 이름 + 같은 유통기한의 재고 찾기
             val existing = snapshot.children.firstOrNull {
-                val name = it.child("name").getValue(String::class.java)
-                val existingExpiry = it.child("expiry").getValue(String::class.java)
-
-                name == item.name && existingExpiry == expiry
+                it.child("name").getValue(String::class.java) == item.name &&
+                        it.child("expiry").getValue(String::class.java) == expiry
             }
 
             if (existing != null) {
                 // 기존 재고가 있으면 수량 합치기
-                val existingQty =
-                    existing.child("qty").getValue(Int::class.java) ?: 0
-
-                existing.ref.child("qty").setValue(existingQty + qty)
-
+                existing.ref.child("qty").setValue(existing.qtyNumber() + qty)
             } else {
                 // 없으면 새로운 Firebase key 생성
                 val key = inventoryRef.push().key ?: return@addOnSuccessListener
-
                 inventoryRef.child(key).setValue(
                     mapOf(
-                        "name" to item.name,
-                        "category" to item.category.name,
-                        "expiry" to expiry,
-                        "qty" to qty,
-                        "unit" to unit,
-                        "location" to item.location,
+                        "name"       to item.name,
+                        "category"   to item.category.name,
+                        "expiry"     to expiry,
+                        "qty"        to qty,
+                        "unit"       to unit,
+                        "location"   to item.location,
                         "isAllergen" to item.isAllergen,
                     )
                 )
             }
 
+            if (showToast) _state.update { it.copy(toast = "${item.name} 냉장고에 추가됐어요 🧊") }
         }
     }
 
+
     private fun addWebcamItem(item: FoodItem) {
         _state.update { s ->
-            if (s.webcamItems.any { it.name == item.name && it.expiry == item.expiry }) return@update s
-            val newWebcam  = s.webcamItems + item
-            val stocksOnly = s.inventory.filter { inv -> s.webcamItems.none { it.name == inv.name } }
-            val combined   = stocksOnly + newWebcam.filter { w -> stocksOnly.none { it.name == w.name } }
-            val notifs     = buildNotifications(combined, s.settings, s.allergens)
-            s.copy(webcamItems = newWebcam, inventory = combined, notifications = notifs,
-                toast = "${item.name} 웹캠으로 인식됐어요 📷")
+            if (s.webcamItems.any { it.name == item.name && it.expiry == item.expiry }) {
+                return@update s
+            }
+
+            val newWebcam = s.webcamItems + item
+            val stocksOnly = s.inventory.filter { inv ->
+                s.webcamItems.none { it.name == inv.name }
+            }
+            val combined = stocksOnly + newWebcam.filter { w ->
+                stocksOnly.none { it.name == w.name }
+            }
+            val notifs = buildNotifications(combined, s.settings, s.allergens)
+
+            s.copy(
+                webcamItems = newWebcam,
+                inventory = combined,
+                notifications = notifs,
+                toast = "${item.name} 웹캠으로 인식됐어요 📷"
+            )
         }
     }
 
@@ -359,11 +438,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         val expiryStr = child.child("expiry").getValue(String::class.java) ?: LocalDate.now().toString()
                         val expiry    = runCatching { LocalDate.parse(expiryStr) }.getOrDefault(LocalDate.now())
                         FoodItem(
-                            id = child.key ?: return@runCatching null,
+                            id         = child.key ?: return@runCatching null,
                             name       = name,
                             category   = runCatching { FoodCategory.valueOf(catStr) }.getOrDefault(FoodCategory.GRAIN),
                             expiry     = expiry,
-                            qty        = child.child("qty").getValue(String::class.java) ?: "1개",
+                            qty        = child.qtyText(),
                             location   = child.child("location").getValue(String::class.java) ?: "냉장 1칸",
                             addedDays  = 0,
                             isAllergen = child.child("isAllergen").getValue(Boolean::class.java) ?: false,
@@ -445,37 +524,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Firebase 파싱 ─────────────────────────────────────────────────────────
 
     private fun parseInventoryItem(snap: DataSnapshot): FoodItem? = runCatching {
-        val name       = snap.child("name").getValue(String::class.java) ?: return@runCatching null
-        val catStr     = snap.child("category").getValue(String::class.java) ?: "GRAIN"
-        val category   = runCatching { FoodCategory.valueOf(catStr) }.getOrDefault(FoodCategory.GRAIN)
-        val expiryStr  = snap.child("expiry").getValue(String::class.java) ?: LocalDate.now().toString()
-        val expiry     = runCatching { LocalDate.parse(expiryStr) }.getOrDefault(LocalDate.now())
-        val qty        = snap.child("qty").getValue(Int::class.java) ?: 1
-        val unit       = snap.child("unit").getValue(String::class.java) ?: "개"
-        val freshness  = snap.child("freshness").getValue(Int::class.java)
-        val location   = snap.child("location").getValue(String::class.java) ?: "냉장 1칸"
-        val addedDays  = snap.child("addedDays").getValue(Int::class.java) ?: 0
-        val isAllergen = snap.child("isAllergen").getValue(Boolean::class.java) ?: false
+        val name           = snap.child("name").getValue(String::class.java) ?: return@runCatching null
+        val catStr         = snap.child("category").getValue(String::class.java) ?: "GRAIN"
+        val category       = runCatching { FoodCategory.valueOf(catStr) }.getOrDefault(FoodCategory.GRAIN)
+        val expiryStr      = snap.child("expiry").getValue(String::class.java) ?: LocalDate.now().toString()
+        val expiry         = runCatching { LocalDate.parse(expiryStr) }.getOrDefault(LocalDate.now())
+        val freshness      = (snap.child("freshness").value as? Number)?.toInt()
+        val freshnessClass = snap.child("freshnessClass").getValue(String::class.java)
+        val freshnessConf  = (snap.child("freshnessConf").value as? Number)?.toDouble()
+        val location       = snap.child("location").getValue(String::class.java) ?: "냉장 1칸"
+        val addedDays      = (snap.child("addedDays").value as? Number)?.toInt() ?: 0
+        val isAllergen     = snap.child("isAllergen").getValue(Boolean::class.java) ?: false
 
         FoodItem(
-            id = snap.key ?: return@runCatching null,
-            name = name,
-            category = category,
-            expiry = expiry,
-            qty = "$qty$unit",
-            freshness = freshness,
-            location = location,
-            addedDays = addedDays,
-            isAllergen = isAllergen,
+            id             = snap.key ?: return@runCatching null,
+            name           = name,
+            category       = category,
+            expiry         = expiry,
+            qty            = snap.qtyText(),
+            freshness      = freshness,
+            freshnessClass = freshnessClass,
+            freshnessConf  = freshnessConf,
+            location       = location,
+            addedDays      = addedDays,
+            isAllergen     = isAllergen,
         )
     }.getOrNull()
 
     private fun parseScanResult(snap: DataSnapshot): ScanResult? = runCatching {
         val id         = snap.key ?: return@runCatching null
         val name       = snap.child("name").getValue(String::class.java) ?: return@runCatching null
-        val confidence = snap.child("confidence").getValue(Double::class.java)
+        val confidence = (snap.child("confidence").value as? Number)?.toDouble()
         val isAllergen = snap.child("isAllergen").getValue(Boolean::class.java) ?: false
-        val qty        = snap.child("qty").getValue(String::class.java) ?: ""
+        val qty        = snap.child("qty").value?.toString() ?: ""
         ScanResult(id = id, name = name, confidence = confidence, isAllergen = isAllergen, qty = qty)
     }.getOrNull()
 
@@ -499,7 +580,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startScan(mode: ScanMode) {
         allergenHapticFired = false
-        rootDb.child("current_mode").setValue(mode.name)
+        val firebaseMode = when (mode) {
+            ScanMode.FRESH -> "fresh_scan"
+            else           -> mode.name
+        }
+        rootDb.child("current_mode").setValue(firebaseMode)
         db.child("scan_results").removeValue()
         db.child("scan_status").setValue("scanning")
         _state.update { it.copy(scanSheetOpen = false, activeScanMode = mode, scanResults = emptyList(), scanPhase = "scanning") }
@@ -615,18 +700,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(settings = newSettings, notifications = notifs) }
     }
 
+    // ── 재고 항목 수정 ────────────────────────────────────────────────────────
+
     fun updateItemExpiry(itemId: String, newExpiry: String) {
-        val newDate = LocalDate.parse(newExpiry)
+        val newDate = runCatching { LocalDate.parse(newExpiry) }.getOrNull() ?: run {
+            _state.update { it.copy(toast = "날짜 형식이 올바르지 않아요") }
+            return
+        }
         val inventoryRef = rootDb.child("MoA-BoB").child("foodInventory")
 
         inventoryRef.get().addOnSuccessListener { snapshot ->
             val current = snapshot.child(itemId)
-
             if (!current.exists()) return@addOnSuccessListener
 
             val currentName = current.child("name").getValue(String::class.java) ?: return@addOnSuccessListener
-            val currentQty = current.child("qty").getValue(Int::class.java) ?: 0
-            val currentUnit = current.child("unit").getValue(String::class.java) ?: "개"
+            val currentQty  = current.qtyNumber()
 
             // 같은 이름 + 새로운 유통기한을 가진 기존 재고 찾기
             val existing = snapshot.children.firstOrNull {
@@ -637,12 +725,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             if (existing != null) {
                 // 이미 같은 이름 + 같은 유통기한이 있으면 수량 합치기
-                val existingQty = existing.child("qty").getValue(Int::class.java) ?: 0
-
-                existing.ref.child("qty").setValue(existingQty + currentQty)
-                    .addOnSuccessListener {
-                        current.ref.removeValue()
-                    }
+                existing.ref.child("qty").setValue(existing.qtyNumber() + currentQty)
+                    .addOnSuccessListener { current.ref.removeValue() }
             } else {
                 // 같은 재고가 없으면 유통기한만 수정
                 current.ref.child("expiry").setValue(newExpiry)
@@ -652,92 +736,86 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val updatedInventory = if (existing != null) {
                     s.inventory.filter { it.id != itemId }
                 } else {
-                    s.inventory.map {
-                        if (it.id == itemId) it.copy(expiry = newDate) else it
-                    }
+                    s.inventory.map { if (it.id == itemId) it.copy(expiry = newDate) else it }
                 }
-
                 s.copy(
                     inventory = updatedInventory,
-                    openItem = if (existing != null) {
-                        null
-                    } else {
-                        s.openItem?.let {
-                            if (it.id == itemId) it.copy(expiry = newDate) else it
-                        }
-                    },
-                    toast = if (existing != null) {
-                        "${currentName} 재고가 합쳐졌어요 ✏️"
-                    } else {
-                        "유통기한이 수정됐어요 ✏️"
-                    },
+                    openItem  = if (existing != null) null
+                    else s.openItem?.let { if (it.id == itemId) it.copy(expiry = newDate) else it },
+                    toast     = if (existing != null) "${currentName} 재고가 합쳐졌어요 ✏️"
+                    else "유통기한이 수정됐어요 ✏️",
                 )
             }
         }
     }
+
     fun updateItemQty(itemId: String, newQty: String) {
         val inventoryRef = rootDb.child("MoA-BoB").child("foodInventory")
-        val qty = newQty.filter { it.isDigit() }.toIntOrNull() ?: 0
+        val qty  = newQty.filter { it.isDigit() }.toIntOrNull() ?: 0
         val unit = newQty.filter { !it.isDigit() }.trim().ifBlank { "개" }
-
         val itemRef = inventoryRef.child(itemId)
 
         if (qty <= 0) {
             itemRef.removeValue()
-
             _state.update { s ->
                 s.copy(
                     inventory = s.inventory.filter { it.id != itemId },
-                    openItem = if (s.openItem?.id == itemId) null else s.openItem,
-                    toast = "재고가 삭제됐어요 🗑️",
+                    openItem  = if (s.openItem?.id == itemId) null else s.openItem,
+                    toast     = "재고가 삭제됐어요 🗑️",
                 )
             }
             return
         }
 
-        itemRef.updateChildren(
-            mapOf(
-                "qty" to qty,
-                "unit" to unit,
-            )
-        )
-
+        itemRef.updateChildren(mapOf("qty" to qty, "unit" to unit))
         _state.update { s ->
             s.copy(
-                inventory = s.inventory.map {
-                    if (it.id == itemId) it.copy(qty = "$qty$unit") else it
-                },
-                openItem = s.openItem?.let {
-                    if (it.id == itemId) it.copy(qty = "$qty$unit") else it
-                },
-                toast = "개수가 수정됐어요 ✏️",
+                inventory = s.inventory.map { if (it.id == itemId) it.copy(qty = "$qty$unit") else it },
+                openItem  = s.openItem?.let { if (it.id == itemId) it.copy(qty = "$qty$unit") else it },
+                toast     = "개수가 수정됐어요 ✏️",
             )
         }
     }
 
     fun deleteInventoryItem(itemId: String) {
-        val inventoryRef = rootDb
-            .child("MoA-BoB")
-            .child("foodInventory")
-            .child(itemId)
-
-        inventoryRef.removeValue()
+        rootDb.child("MoA-BoB").child("foodInventory").child(itemId).removeValue()
             .addOnSuccessListener {
                 _state.update { s ->
                     s.copy(
                         inventory = s.inventory.filter { it.id != itemId },
-                        openItem = if (s.openItem?.id == itemId) null else s.openItem,
-                        toast = "재고가 삭제됐어요 🗑️",
+                        openItem  = if (s.openItem?.id == itemId) null else s.openItem,
+                        toast     = "재고가 삭제됐어요 🗑️",
                     )
                 }
             }
             .addOnFailureListener {
-                _state.update { s ->
-                    s.copy(
-                        toast = "재고 삭제에 실패했어요."
-                    )
-                }
+                _state.update { it.copy(toast = "재고 삭제에 실패했어요.") }
             }
+    }
+
+    fun toggleRemnant(itemId: String) {
+        val current = _state.value.inventory.firstOrNull { it.id == itemId } ?: return
+        val newValue = !current.hasRemnant
+
+        // 세션 메모리에만 기록합니다. Firebase에는 읽거나 쓰지 않습니다.
+        synchronized(remnantItemIds) {
+            if (newValue) remnantItemIds.add(itemId) else remnantItemIds.remove(itemId)
+        }
+
+        _state.update { s ->
+            s.copy(
+                inventory = s.inventory.map {
+                    if (it.id == itemId) it.copy(hasRemnant = newValue) else it
+                },
+                webcamItems = s.webcamItems.map {
+                    if (it.id == itemId) it.copy(hasRemnant = newValue) else it
+                },
+                openItem = s.openItem?.let {
+                    if (it.id == itemId) it.copy(hasRemnant = newValue) else it
+                },
+                toast = if (newValue) "자투리로 표시됐어요 🥄" else "자투리 표시가 해제됐어요",
+            )
+        }
     }
 
     // ── 음성 명령 처리 ────────────────────────────────────────────────────────
@@ -750,9 +828,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             VoiceCommand.EnterAddMode -> {
                 val msg = "재고 추가 모드입니다. 추가할 식재료를 말씀하세요."
                 _state.update { it.copy(
-                    isAddMode  = true,
-                    addedItems = emptyList(),
-                    pendingTts = msg,
+                    isAddMode         = true,
+                    addedItems        = emptyList(),
+                    pendingTts        = msg,
                     lastVoiceResponse = msg,
                 )}
             }
@@ -762,9 +840,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val count = _state.value.addedItems.size
                 val msg   = if (count > 0) "총 ${count}개 항목이 추가됐습니다." else "추가 모드를 종료합니다."
                 _state.update { it.copy(
-                    isAddMode  = false,
-                    addedItems = emptyList(),
-                    pendingTts = msg,
+                    isAddMode         = false,
+                    addedItems        = emptyList(),
+                    pendingTts        = msg,
                     lastVoiceResponse = msg,
                 )}
             }
@@ -778,9 +856,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     } else {
                         LocalDate.now().plusDays(DEFAULT_SHELF_DAYS[cmd.name] ?: 7L)
                     }
-
                     FoodItem(
-                        id = "${System.currentTimeMillis()}_${cmd.name.hashCode()}",
+                        id         = "${System.currentTimeMillis()}_${cmd.name.hashCode()}",
                         name       = cmd.name,
                         qty        = cmd.qty,
                         category   = FoodCategoryMapper.getCategory(cmd.name),
@@ -790,14 +867,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         isAllergen = false,
                     )
                 }
-
-                newItems.forEach { item ->
-                    autoAddMarketItem(item, showToast = false)
-                }
-
+                newItems.forEach { autoAddMarketItem(it, showToast = false) }
                 val names = newItems.joinToString(", ") { "${it.name} ${it.qty}" }
-                val msg = "${names} 추가됐어요."
-
+                val msg   = "${names} 추가됐어요."
                 _state.update { s -> s.copy(
                     addedItems        = s.addedItems + newItems,
                     pendingTts        = msg,
@@ -812,18 +884,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         ?: LocalDate.now().plusDays(7)
                 } else {
                     // 식약처 로컬 기본값 — expiry 없이 말한 경우 (신선식품)
-                    val days = DEFAULT_SHELF_DAYS[command.name] ?: 7L
-                    LocalDate.now().plusDays(days)
+                    LocalDate.now().plusDays(DEFAULT_SHELF_DAYS[command.name] ?: 7L)
                 }
 
                 val newItem = FoodItem(
-                    id = System.currentTimeMillis().toString(),
-                    name      = command.name,
-                    qty       = command.qty,
-                    category  = FoodCategoryMapper.getCategory(command.name),
-                    expiry    = expiry,
-                    location  = "냉장고",
-                    addedDays = 0,
+                    id         = System.currentTimeMillis().toString(),
+                    name       = command.name,
+                    qty        = command.qty,
+                    category   = FoodCategoryMapper.getCategory(command.name),
+                    expiry     = expiry,
+                    location   = "냉장고",
+                    addedDays  = 0,
                     isAllergen = false,
                 )
 
@@ -843,19 +914,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // ── 유통기한 조회 ─────────────────────────────────────────────────
             is VoiceCommand.ExpiryQuery -> {
                 val item = inv.firstOrNull { it.name == command.foodName }
-                val msg = when {
-                    item == null        -> "${command.foodName}${command.foodName.josa("은", "는")} 냉장고에 등록되지 않았습니다."
-                    item.expiry == null -> "${item.name}의 유통기한 정보가 없습니다."
-                    else -> {
-                        val d    = item.expiry
-                        val days = item.daysLeft()
-                        buildString {
-                            append("${item.name}의 유통기한은 ${d.monthValue}월 ${d.dayOfMonth}일입니다.")
-                            when {
-                                days <= 0 -> append(" 이미 만료됐습니다.")
-                                days == 1 -> append(" 내일 만료됩니다.")
-                                days <= 3 -> append(" ${days}일 남았습니다.")
-                            }
+                val msg = if (item == null) {
+                    "${command.foodName}${command.foodName.josa("은", "는")} 냉장고에 등록되지 않았습니다."
+                } else {
+                    val d    = item.expiry
+                    val days = item.daysLeft()
+                    buildString {
+                        append("${item.name}의 유통기한은 ${d.monthValue}월 ${d.dayOfMonth}일입니다.")
+                        when {
+                            days <= 0 -> append(" 이미 만료됐습니다.")
+                            days == 1 -> append(" 내일 만료됩니다.")
+                            days <= 3 -> append(" ${days}일 남았습니다.")
                         }
                     }
                 }
@@ -877,7 +946,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val days      = command.days
                 val threshold = LocalDate.now().plusDays(days.toLong())
                 val expiring  = inv
-                    .filter { it.expiry != null && !it.expiry.isAfter(threshold) }
+                    .filter { !it.expiry.isAfter(threshold) }
                     .sortedBy { it.expiry }
                 val dayLabel = when (days) {
                     1    -> "하루"
@@ -919,49 +988,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             VoiceCommand.Confirm -> {
-                val item = _state.value.pendingDeleteItem ?: return
+                val item      = _state.value.pendingDeleteItem ?: return
                 val deleteQty = _state.value.pendingDeleteQty ?: 1
-
                 val inventoryRef = rootDb.child("MoA-BoB").child("foodInventory")
 
                 inventoryRef.get().addOnSuccessListener { snapshot ->
-
                     // 같은 이름의 재고를 유통기한 빠른 순서로 정렬
                     val matchingItems = snapshot.children
-                        .filter {
-                            it.child("name").getValue(String::class.java) == item.name
-                        }
+                        .filter { it.child("name").getValue(String::class.java) == item.name }
                         .sortedBy {
                             val expiry = it.child("expiry").getValue(String::class.java)
-                                ?: LocalDate.MAX.toString()
-                            runCatching { LocalDate.parse(expiry) }
-                                .getOrDefault(LocalDate.MAX)
+                            runCatching { LocalDate.parse(expiry) }.getOrDefault(LocalDate.MAX)
                         }
 
                     var remainingToDelete = deleteQty
 
                     // 유통기한이 빠른 재고부터 차례대로 소비
                     matchingItems.forEach { stock ->
-
                         if (remainingToDelete <= 0) return@forEach
-
-                        val stockQty = stock.child("qty").getValue(Int::class.java) ?: 0
-
+                        val stockQty = stock.qtyNumber()
                         if (stockQty <= remainingToDelete) {
-                            // 해당 재고를 전부 소비
                             remainingToDelete -= stockQty
                             stock.ref.removeValue()
                         } else {
-                            // 일부만 소비
-                            val newQty = stockQty - remainingToDelete
+                            stock.ref.child("qty").setValue(stockQty - remainingToDelete)
                             remainingToDelete = 0
-
-                            stock.ref.child("qty").setValue(newQty)
                         }
                     }
 
                     val actuallyDeleted = deleteQty - remainingToDelete
-
                     val msg = if (actuallyDeleted > 0) {
                         "${item.name} ${actuallyDeleted}개${item.name.josa("을", "를")} 삭제했습니다."
                     } else {
@@ -971,21 +1026,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     _state.update { s ->
                         s.copy(
                             pendingDeleteItem = null,
-                            pendingDeleteQty = null,
-                            pendingTts = msg,
+                            pendingDeleteQty  = null,
+                            pendingTts        = msg,
                             lastVoiceResponse = msg,
-                            toast = if (actuallyDeleted > 0) {
-                                "${item.name} ${actuallyDeleted}개 삭제됨 🗑️"
-                            } else {
-                                null
-                            },
+                            toast             = if (actuallyDeleted > 0) "${item.name} ${actuallyDeleted}개 삭제됨 🗑️" else null,
                         )
                     }
                 }
             }
+
             VoiceCommand.Cancel -> {
                 val msg = "취소했습니다."
-                _state.update { it.copy(pendingDeleteItem = null, pendingTts = msg, lastVoiceResponse = msg) }
+                _state.update { it.copy(
+                    pendingDeleteItem = null,
+                    pendingDeleteQty  = null,
+                    pendingTts        = msg,
+                    lastVoiceResponse = msg,
+                )}
             }
 
             // ── 이전 (음성 초기 화면으로 복귀) ──────────────────────────────────
@@ -1014,11 +1071,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        inventoryListener?.let         { rootDb.child("MoA-BoB").child("foodInventory").removeEventListener(it) }
-        pendingDeliveryListener?.let   { rootDb.child("MoA-BoB").child("pendingDelivery").removeEventListener(it) }
-        scanResultsListener?.let { db.child("scan_results").removeEventListener(it) }
-        scanStatusListener?.let  { db.child("scan_status").removeEventListener(it) }
-        arrivalsListener?.let    { db.child("inventory").removeEventListener(it) }
+        inventoryListener?.let        { rootDb.child("MoA-BoB").child("foodInventory").removeEventListener(it) }
+        pendingDeliveryListener?.let  { rootDb.child("MoA-BoB").child("pendingDelivery").removeEventListener(it) }
+        scanResultsListener?.let      { db.child("scan_results").removeEventListener(it) }
+        scanStatusListener?.let       { db.child("scan_status").removeEventListener(it) }
+        arrivalsListener?.let         { db.child("inventory").removeEventListener(it) }
         _state.value.household?.id?.let { hid ->
             householdMemberListener?.let { HouseholdManager.removeListener(hid, it) }
         }

@@ -31,8 +31,10 @@ fun ItemDetailSheet(
     onUpdateExpiry: (String) -> Unit = {},   // "yyyy-MM-dd" 형식
     onUpdateQty: (String) -> Unit = {},      // "3개", "2봉지" 등
     onRecipeRecommend: (String) -> Unit = {},
+    onToggleRemnant: () -> Unit = {},
     onDelete: () -> Unit = {},
-) {
+
+    ) {
     var showStorageGuide by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showQtyDialog by remember { mutableStateOf(false) }
@@ -122,11 +124,11 @@ fun ItemDetailSheet(
                         }
                     }
 
-                    // 카테고리 · 개수 + 개수 수정 버튼
+                    // 카테고리 · 개수 + 개수 수정 버튼 + 자투리 칩
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = 2.dp).fillMaxWidth(),
                     ) {
                         Text(
                             "${cat.label} · ${item.qty}",
@@ -165,6 +167,37 @@ fun ItemDetailSheet(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = colors.textMuted
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.weight(1f))
+
+                        // GitHub 원본의 자투리 토글 칩
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (item.hasRemnant) Color(0xFFFFF3CD) else colors.surfaceAlt
+                                )
+                                .border(
+                                    1.5.dp,
+                                    if (item.hasRemnant) Color(0xFFD4A017) else colors.border,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { onToggleRemnant() }
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            ) {
+                                Text("🥄", fontSize = 13.sp)
+                                Text(
+                                    "자투리",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (item.hasRemnant) Color(0xFF9B6B00) else colors.textMuted,
                                 )
                             }
                         }
@@ -412,6 +445,8 @@ fun ItemDetailSheet(
                     }
                 }
             }
+
+
 
             // ── 재고 삭제 버튼 ────────────────────────────────────────────────
             Box(

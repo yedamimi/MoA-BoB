@@ -14,6 +14,8 @@ enum class FoodCategory(val label: String, val hexColor: Long) {
     PROCESSED("가공식품", 0xFF8A6F5A),
 }
 
+
+
 data class FoodItem(
     val id:  String,
     val name: String,
@@ -21,9 +23,12 @@ data class FoodItem(
     val expiry: LocalDate,
     val qty: String,
     val freshness: Int? = null,
+    val freshnessClass: String? = null,
+    val freshnessConf: Double? = null,
     val location: String,
     val addedDays: Int,
     val isAllergen: Boolean = false,
+    val hasRemnant: Boolean = false,
 ) {
     fun daysLeft(today: LocalDate = LocalDate.now()): Int =
         (expiry.toEpochDay() - today.toEpochDay()).toInt()

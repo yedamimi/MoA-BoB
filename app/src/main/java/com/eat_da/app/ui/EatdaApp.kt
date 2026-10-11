@@ -208,6 +208,9 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 onRecipeRecommend = { foodName ->
                     vm.openRecipeRecommendations(foodName)
                 },
+                onToggleRemnant = {
+                    vm.toggleRemnant(item.id)
+                },
                 onDelete = {
                     vm.deleteInventoryItem(item.id)
                 },
