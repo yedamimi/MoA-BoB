@@ -42,45 +42,42 @@ fun ScanView(
     onClose: () -> Unit,
     onConfirm: (List<ScanResult>) -> Unit,
     onRescan: () -> Unit,            // 결과 목록만 비우고 계속 스캔
+    onExpiryCaptured: (ScanResult, LocalDate) -> Unit,  // 유통기한 촬영 성공 → 재고에 저장
 ) {
     val context    = LocalContext.current
     val isIn       = mode == ScanMode.IN
     val isFresh    = mode == ScanMode.FRESH
-    val isAllergen = mode == ScanMode.ALLERGEN
 
     val accent = when {
-        isIn || isAllergen -> colors.accent
-        isFresh            -> Color(0xFF5A4FB5)
-        else               -> Color(0xFFD17231)
+        isIn    -> colors.accent
+        isFresh -> Color(0xFF5A4FB5)
+        else    -> Color(0xFFD17231)
     }
     val accentSoft = when {
-        isIn || isAllergen -> colors.accentSoft
-        isFresh            -> Color(0xFFECEAF8)
-        else               -> Color(0xFFFBE9D9)
+        isIn    -> colors.accentSoft
+        isFresh -> Color(0xFFECEAF8)
+        else    -> Color(0xFFFBE9D9)
     }
     val accentDeep = when {
-        isIn || isAllergen -> colors.accentDeep
-        isFresh            -> Color(0xFF3B3287)
-        else               -> Color(0xFF7E3F1A)
+        isIn    -> colors.accentDeep
+        isFresh -> Color(0xFF3B3287)
+        else    -> Color(0xFF7E3F1A)
     }
 
     val titleText = when (mode) {
         ScanMode.IN       -> "식재료 입고"
         ScanMode.OUT      -> "식재료 출고"
         ScanMode.FRESH    -> "신선도 확인"
-        ScanMode.ALLERGEN -> "알레르기 식재료 스캔"
     }
     val subText = when (mode) {
-        ScanMode.IN, ScanMode.ALLERGEN -> "YOLO AI · 웹캠 입고 모드"
-        ScanMode.OUT                   -> "YOLO AI · 웹캠 출고 모드"
-        ScanMode.FRESH                 -> "OpenCV · 웹캠 부패도 분석"
+        ScanMode.IN    -> "YOLO AI · 웹캠 입고 모드"
+        ScanMode.OUT   -> "YOLO AI · 웹캠 출고 모드"
+        ScanMode.FRESH -> "OpenCV · 웹캠 부패도 분석"
     }
 
     // ── 알레르기 감지 → HapticManager 진동 ───────────────────────────────────
     var allergyAlert by remember { mutableStateOf<ScanResult?>(null) }
     LaunchedEffect(scanResults) {
-        // 알레르기 등록 스캔에서는 경고하지 않음
-        if (isAllergen) return@LaunchedEffect
         // 사용자가 등록한 알레르기 목록과 이름으로 비교
         val found = scanResults.firstOrNull { r ->
             allergens.any { a -> allergenMatches(a.name, r.name) }
@@ -108,7 +105,10 @@ fun ScanView(
             val stream = java.io.ByteArrayOutputStream()
             bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, stream)
             val date = VisionService.extractExpiryDate(stream.toByteArray())
-            if (date != null) ocrResults = ocrResults + (id to date)
+            if (date != null) {
+                ocrResults = ocrResults + (id to date)
+                scanResults.firstOrNull { it.id == id }?.let { onExpiryCaptured(it, date) }
+            }
             ocrLoadingId = null
         }
     }
@@ -211,9 +211,9 @@ fun ScanView(
                         )
                         Text(
                             scanHint ?: when {
-                                isIn || isAllergen -> "YOLO v8 · 웹캠 입고 인식 중"
-                                isFresh            -> "OpenCV · 웹캠 부패 면적 측정 중"
-                                else               -> "YOLO v8 · 웹캠 출고 인식 중"
+                                isIn    -> "YOLO v8 · 웹캠 입고 인식 중"
+                                isFresh -> "OpenCV · 웹캠 부패 면적 측정 중"
+                                else    -> "YOLO v8 · 웹캠 출고 인식 중"
                             },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -308,7 +308,6 @@ fun ScanView(
                                 Text(
                                     when {
                                         isFresh    -> "결과 확인 완료"
-                                        isAllergen -> "${scanResults.size}개 알레르기 식재료로 등록"
                                         isIn       -> "${scanResults.size}개 재고에 입고"
                                         else       -> "${scanResults.size}개 재고에서 출고"
                                     },
