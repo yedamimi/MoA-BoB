@@ -55,11 +55,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
     }
 
     BackHandler(enabled = state.screen == Screen.RECIPES) {
-        if (state.recipeFocusIngredient != null) {
-            vm.navigate(Screen.INVENTORY)
-        } else {
-            vm.navigate(Screen.HOME)
-        }
+        vm.backFromRecipes()
     }
 
 
@@ -197,6 +193,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
             ItemDetailSheet(
                 colors         = colors,
                 item           = item,
+                freshnessCheck = state.freshnessChecks[item.name],
                 sheetState     = itemSheetState,
                 onDismiss      = vm::closeItem,
                 onUpdateExpiry = { newExpiry ->
@@ -204,9 +201,6 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 },
                 onUpdateQty = { newQty ->
                     vm.updateItemQty(item.id, newQty)
-                },
-                onRecipeRecommend = { foodName ->
-                    vm.openRecipeRecommendations(foodName)
                 },
                 onToggleRemnant = {
                     vm.toggleRemnant(item.id)
@@ -281,6 +275,10 @@ private fun AppScreenContent(
                     colors = colors,
                     sizes = sizes,
                     inventory = state.inventory,
+                    selectedFoodName = state.inventoryGroupName,
+                    onSelectFood = vm::openInventoryGroup,
+                    freshnessChecks = state.freshnessChecks,
+                    onCheckFreshness = vm::startFreshCheck,
                     onOpenItem = vm::openItem,
                     onRecipeRecommend = { foodName ->
                         vm.openRecipeRecommendations(foodName)
@@ -314,7 +312,7 @@ private fun AppScreenContent(
                     sizes            = sizes,
                     allergens        = state.allergens,
                     onRemoveAllergen = vm::removeAllergen,
-                    onScanAllergen   = { vm.startScan(ScanMode.ALLERGEN) },
+                    onAddAllergen    = vm::addAllergen,
                     onGoHousehold    = { vm.navigate(Screen.HOUSEHOLD) },
                 )
                 Screen.SETTINGS -> SettingsScreen(
@@ -348,8 +346,11 @@ private fun AppScreenContent(
                     allergens = state.allergens,
                     scanResults = state.scanResults,
                     scanPhase = state.scanPhase,
+                    streamUrl = state.streamUrl,
+                    scanHint = state.scanHint,
                     onClose = vm::closeScan,
                     onConfirm = vm::confirmScan,
+                    onRescan = vm::rescan,
                 )
             }
         }
