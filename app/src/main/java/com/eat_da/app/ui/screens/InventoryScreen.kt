@@ -1,4 +1,3 @@
-
 package com.eatda.app.ui.screens
 
 import androidx.compose.foundation.*
@@ -22,6 +21,7 @@ import com.eatda.app.data.*
 import com.eatda.app.data.model.*
 import com.eatda.app.ui.components.*
 import com.eatda.app.ui.theme.*
+import com.eatda.app.util.parseQty
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.window.Dialog
@@ -41,35 +41,94 @@ private enum class InvFilter(val label: String) {
     PROCESSED("가공식품"),
 }
 
-// 화면 표시용 수량 숫자 추출
-// 예: "2개" -> 2, "2" -> 2
-private fun extractInventoryQty(qty: String): Int {
-    return Regex("""\d+""")
-        .find(qty)
-        ?.value
-        ?.toIntOrNull()
-        ?: 0
+// 같은 이름 재고의 화면 표시용 수량 합계
+// 예: "2개" + "1개" -> "3개", "500ml" + "900ml" -> "1400ml"
+// 단위가 다르거나 "1/2통"처럼 정수가 아닌 수량이 섞이면 재고 건수로 표시 -> "2건"
+private fun totalQtyText(items: List<FoodItem>): String {
+    if (items.size == 1) return items.first().qty
+
+    val parsed = items.mapNotNull { parseQty(it.qty) }
+    val unit = parsed.firstOrNull()?.unit
+
+    return if (parsed.size == items.size && parsed.all { it.unit == unit }) {
+        "${parsed.sumOf { it.amount }}$unit"
+    } else {
+        "${items.size}건"
+    }
 }
+
+// 유통기한 경과 전용 색상 (차분한 갈색 계열)
+private val ExpiredColor = Color(0xFF795548)
+private val ExpiredSoft = Color(0xFFF3E9E6)
+
+// 주의 글자색: warningSoft 배경 위에서 읽히도록 colors.warning보다 진한 색
+private val WarningText = Color(0xFF9B6B1F)
+
+// 자투리 칩 색상
+private val RemnantBg = Color(0xFFFFF3CD)
+private val RemnantText = Color(0xFF9B6B00)
+
+// 재고 목록의 소비기한 구분
+// 임박: D-0 ~ D-3 / 주의: D-4 ~ D-7 (경과는 ExpiryStatus.EXPIRED)
+private fun FoodItem.isImminent(): Boolean = daysLeft() in 0..3
+private fun FoodItem.isCaution(): Boolean = daysLeft() in 4..7
+
+// 유통기한 상태별 배지 색상 (배경, 글자)
+private fun expiryTone(
+    colors: EatdaColors,
+    status: ExpiryStatus,
+    expiredTone: Pair<Color, Color> = Pair(ExpiredSoft, ExpiredColor),
+): Pair<Color, Color> =
+    when (status) {
+        ExpiryStatus.EXPIRED ->
+            expiredTone
+
+        // 임박 (D-0 ~ D-3)
+        ExpiryStatus.CRITICAL,
+        ExpiryStatus.WARNING ->
+            Pair(colors.dangerSoft, colors.danger)
+
+        // 주의 (D-4 ~ D-7)
+        ExpiryStatus.SOON ->
+            Pair(colors.warningSoft, WarningText)
+
+        ExpiryStatus.FRESH ->
+            Pair(colors.accentSoft, colors.accentDeep)
+    }
+
+// 최근 신선도 확인 기록의 표시 색상
+// 등급 기준은 FreshnessStatus (70% 이상 신선 / 30% 이하 부패 / 그 사이 보통)
+private fun freshnessColor(colors: EatdaColors, check: FreshnessCheck): Color =
+    when (check.status) {
+        FreshnessStatus.FRESH -> colors.accentDeep
+        FreshnessStatus.ATTENTION -> WarningText
+        FreshnessStatus.ROTTEN -> colors.danger
+    }
+
+// "신선도 25% (부패)"
+private fun FreshnessCheck.summaryText(): String = "신선도 $score% (${status.label})"
 
 @Composable
 fun InventoryScreen(
     colors: EatdaColors,
     sizes: EatdaSizes,
     inventory: List<FoodItem>,
+    // null이면 기존 재고 목록,
+    // 값이 있으면 해당 식재료의 유통기한별 재고 화면
+    // 레시피 추천 화면에서 돌아올 때도 유지되도록 AppState에서 관리
+    selectedFoodName: String?,
+    onSelectFood: (String?) -> Unit,
     onOpenItem: (FoodItem) -> Unit,
     onRecipeRecommend: (String) -> Unit,
+    // 식재료 이름별 최근 신선도 확인 기록, 신선도 확인 시작
+    freshnessChecks: Map<String, FreshnessCheck>,
+    onCheckFreshness: (String) -> Unit,
 ) {
     var filter by remember { mutableStateOf(InvFilter.ALL) }
     var query by remember { mutableStateOf("") }
 
-    // null이면 기존 재고 목록,
-    // 값이 있으면 해당 식재료의 유통기한별 재고 화면
-    var selectedFoodName by remember {
-        mutableStateOf<String?>(null)
-    }
-
     BackHandler(enabled = selectedFoodName != null) {
-        selectedFoodName = null
+        onSelectFood(null)
     }
 
     // 식재료별 재고 화면
@@ -79,10 +138,12 @@ fun InventoryScreen(
             foodName = foodName,
             inventory = inventory,
             onBack = {
-                selectedFoodName = null
+                onSelectFood(null)
             },
             onOpenItem = onOpenItem,
             onRecipeRecommend = onRecipeRecommend,
+            freshnessCheck = freshnessChecks[foodName],
+            onCheckFreshness = { onCheckFreshness(foodName) },
         )
 
         return
@@ -92,8 +153,8 @@ fun InventoryScreen(
     // 경과 = 차분한 갈색 계열
     // 임박 = 기존 빨강 계열
     // 주의 = 기존 노랑/주황 계열
-    val expiredColor = Color(0xFF795548)
-    val expiredSoft = Color(0xFFF3E9E6)
+    val expiredColor = ExpiredColor
+    val expiredSoft = ExpiredSoft
 
     val filtered = inventory
         .filter { item ->
@@ -104,12 +165,10 @@ fun InventoryScreen(
                     item.expiryStatus() == ExpiryStatus.EXPIRED
 
                 InvFilter.CRITICAL ->
-                    item.expiryStatus() == ExpiryStatus.CRITICAL
+                    item.isImminent()
 
-                InvFilter.WARNING -> item.expiryStatus() in listOf(
-                    ExpiryStatus.WARNING,
-                    ExpiryStatus.SOON
-                )
+                InvFilter.WARNING ->
+                    item.isCaution()
 
                 InvFilter.VEGETABLE ->
                     item.category == FoodCategory.VEGETABLE
@@ -149,13 +208,9 @@ fun InventoryScreen(
             val representative = items.minByOrNull { it.expiry }
                 ?: items.first()
 
-            // 같은 이름의 재고 수량 합산
-            val totalQty = items.sumOf {
-                extractInventoryQty(it.qty)
-            }
-
             representative.copy(
-                qty = "${totalQty}개",
+                // 같은 이름의 재고 수량 합산
+                qty = totalQtyText(items),
 
                 // 같은 이름 중 하나라도 알레르기 또는 자투리로 표시되면 대표 카드에 표시
                 isAllergen = items.any { it.isAllergen },
@@ -175,7 +230,7 @@ fun InventoryScreen(
 
     val criticalCount = inventory
         .filter {
-            it.expiryStatus() == ExpiryStatus.CRITICAL
+            it.isImminent()
         }
         .distinctBy {
             it.name
@@ -184,10 +239,7 @@ fun InventoryScreen(
 
     val warningCount = inventory
         .filter {
-            it.expiryStatus() in listOf(
-                ExpiryStatus.WARNING,
-                ExpiryStatus.SOON
-            )
+            it.isCaution()
         }
         .distinctBy {
             it.name
@@ -369,7 +421,7 @@ fun InventoryScreen(
                         colors.danger
 
                     f == InvFilter.WARNING ->
-                        Color(0xFF9B6B1F)
+                        WarningText
 
                     else ->
                         colors.text
@@ -425,10 +477,11 @@ fun InventoryScreen(
                 InventoryRow(
                     colors = colors,
                     item = item,
+                    freshnessCheck = freshnessChecks[item.name],
                     onClick = {
                         // 기존처럼 바로 상세 시트를 열지 않고
                         // 같은 이름의 재고 목록 화면으로 이동
-                        selectedFoodName = item.name
+                        onSelectFood(item.name)
                     }
                 )
             }
@@ -464,6 +517,8 @@ private fun InventoryGroupView(
     onBack: () -> Unit,
     onOpenItem: (FoodItem) -> Unit,
     onRecipeRecommend: (String) -> Unit,
+    freshnessCheck: FreshnessCheck?,
+    onCheckFreshness: () -> Unit,
 ) {
     var showStorageGuide by remember {
         mutableStateOf(false)
@@ -480,9 +535,7 @@ private fun InventoryGroupView(
             it.expiry
         }
 
-    val totalQty = foodItems.sumOf {
-        extractInventoryQty(it.qty)
-    }
+    val totalQty = totalQtyText(foodItems)
 
     Column(
         modifier = Modifier
@@ -595,23 +648,126 @@ private fun InventoryGroupView(
 
                     Column {
 
-                        Text(
-                            text = foodName,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = colors.text
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = foodName,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = colors.text
+                            )
+
+                            // 등록한 알레르기에 해당하는 식재료
+                            if (foodItems.any { it.isAllergen }) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(colors.dangerSoft)
+                                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                                ) {
+                                    Text(
+                                        "알레르기",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = colors.danger
+                                    )
+                                }
+                            }
+                        }
 
                         Spacer(
                             Modifier.height(4.dp)
                         )
 
                         Text(
-                            text = "총 ${totalQty}개",
+                            text = "총 $totalQty",
                             fontSize = 14.sp,
                             color = colors.textMuted
                         )
                     }
+                }
+            }
+
+            // ─────────────────────────────
+            // 최근 확인한 신선도 + 신선도 확인
+            // 같은 이름의 재고 묶음은 구분할 수 없으므로 식재료 단위로 기록
+            // ─────────────────────────────
+
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.surface)
+                        .border(
+                            1.dp,
+                            colors.border,
+                            RoundedCornerShape(14.dp)
+                        )
+                        .clickable {
+                            onCheckFreshness()
+                        }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.accentSoft),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        EatdaIcon(
+                            EatdaIcons.Leaf,
+                            tint = colors.accentDeep,
+                            size = 18.dp
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        Text(
+                            text = "최근 확인한 신선도",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.text
+                        )
+
+                        if (freshnessCheck != null) {
+                            Text(
+                                text = "${freshnessCheck.summaryText()} · ${freshnessCheck.agoText()}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = freshnessColor(colors, freshnessCheck)
+                            )
+
+                            if (freshnessCheck.isStale()) {
+                                Text(
+                                    text = "오래된 기록이에요. 다시 확인해보세요.",
+                                    fontSize = 11.sp,
+                                    color = colors.textFaint
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = "아직 확인하지 않았어요.",
+                                fontSize = 12.sp,
+                                color = colors.textMuted
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "신선도 확인  ›",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.accentDeep
+                    )
                 }
             }
 
@@ -740,7 +896,7 @@ private fun InventoryGroupView(
             item {
 
                 Text(
-                    text = "유통기한별 재고 (${foodItems.size}개)",
+                    text = "개별 재고 (${foodItems.size}건)",
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = colors.text,
@@ -917,35 +1073,7 @@ private fun InventoryGroupItemRow(
     onClick: () -> Unit,
 ) {
 
-    val status = item.expiryStatus()
-
-    val tone = when (status) {
-
-        ExpiryStatus.EXPIRED ->
-            Pair(
-                Color(0xFFF3E9E6),
-                Color(0xFF795548)
-            )
-
-        ExpiryStatus.CRITICAL ->
-            Pair(
-                colors.dangerSoft,
-                colors.danger
-            )
-
-        ExpiryStatus.WARNING,
-        ExpiryStatus.SOON ->
-            Pair(
-                colors.warningSoft,
-                Color(0xFF9B6B1F)
-            )
-
-        ExpiryStatus.FRESH ->
-            Pair(
-                colors.accentSoft,
-                colors.accentDeep
-            )
-    }
+    val tone = expiryTone(colors, item.expiryStatus())
 
     Row(
         modifier = Modifier
@@ -1051,33 +1179,16 @@ private fun InventoryGroupItemRow(
 fun InventoryRow(
     colors: EatdaColors,
     item: FoodItem,
-    onClick: () -> Unit
+    freshnessCheck: FreshnessCheck? = null,   // 이 식재료 이름의 최근 신선도 확인 기록
+    onClick: () -> Unit,
 ) {
 
-    val status = item.expiryStatus()
-
-    val tone = when (status) {
-
-        ExpiryStatus.EXPIRED,
-        ExpiryStatus.CRITICAL ->
-            Pair(
-                colors.dangerSoft,
-                colors.danger
-            )
-
-        ExpiryStatus.WARNING,
-        ExpiryStatus.SOON ->
-            Pair(
-                colors.warningSoft,
-                Color(0xFF9B6B1F)
-            )
-
-        ExpiryStatus.FRESH ->
-            Pair(
-                colors.accentSoft,
-                colors.accentDeep
-            )
-    }
+    // 메인 목록에서는 경과도 임박과 같은 빨강으로 표시
+    val tone = expiryTone(
+        colors,
+        item.expiryStatus(),
+        expiredTone = Pair(colors.dangerSoft, colors.danger),
+    )
 
     val cat = item.category
 
@@ -1121,7 +1232,8 @@ fun InventoryRow(
 
             Text(
                 foodEmoji[item.name]
-                    ?: item.name.first().toString(),
+                    ?: item.name.firstOrNull()?.toString()
+                    ?: "?",
                 fontSize = 22.sp
             )
         }
@@ -1172,14 +1284,14 @@ fun InventoryRow(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFFFF3CD))
+                            .background(RemnantBg)
                             .padding(horizontal = 5.dp, vertical = 2.dp),
                     ) {
                         Text(
                             "🥄 자투리",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF9B6B00)
+                            color = RemnantText
                         )
                     }
                 }
@@ -1223,14 +1335,9 @@ fun InventoryRow(
             }
 
 
-            if (item.freshness != null) {
+            if (freshnessCheck != null) {
                 Text(
-                    text = when {
-                        item.freshness < 0 -> "신선도 미분석"
-                        item.freshness >= 70 -> "신선 (신선도 ${item.freshness}%)"
-                        item.freshness > 30 -> "보통 (신선도 ${item.freshness}%)"
-                        else -> "부패 (신선도 ${item.freshness}%)"
-                    },
+                    text = freshnessCheck.summaryText(),
                     fontSize = 10.sp,
                     color = colors.textFaint,
                 )
