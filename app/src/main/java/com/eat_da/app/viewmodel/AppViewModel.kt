@@ -25,6 +25,7 @@ import androidx.lifecycle.viewModelScope
 import com.eatda.app.data.api.RecipeApiService
 import kotlinx.coroutines.launch
 import com.eatda.app.data.FoodCategoryMapper
+import com.eatda.app.data.ReceiptEntry
 import com.eatda.app.util.parseQty
 
 // ── 열거형 ────────────────────────────────────────────────────────────────────
@@ -107,6 +108,8 @@ data class AppState(
     // ── 음성 재고 추가 모드 ──────────────────────────────────────────────────
     val isAddMode: Boolean = false,           // "재고 추가 모드 열어줘" 로 진입
     val addedItems: List<FoodItem> = emptyList(), // 이번 세션에 추가한 항목 (오버레이 표시용)
+    // ── 영수증 스캔 ─────────────────────────────────────────────────────────
+    val receiptScanOpen: Boolean = false,
 )
 
 // ── qty 파싱 헬퍼 (숫자/문자열 둘 다 대응) ─────────────────────────────────────
@@ -857,6 +860,48 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ocrItemIds.clear()
         db.child("scan_results").removeValue()
         _state.update { it.copy(scanResults = emptyList(), scanPhase = "scanning") }
+    }
+
+    // ── 영수증 스캔 ─────────────────────────────────────────────────────────
+
+    fun openReceiptScan()  = _state.update { it.copy(scanSheetOpen = false, receiptScanOpen = true) }
+    fun closeReceiptScan() = _state.update { it.copy(receiptScanOpen = false) }
+
+    // 확인 화면에서 고른 항목을 재고에 추가 (같은 이름·소비기한 재고가 있으면 수량 합침)
+    fun confirmReceipt(entries: List<ReceiptEntry>) {
+        val now = System.currentTimeMillis()
+        val items = entries
+            .filter { it.checked && it.name.isNotBlank() }
+            .map { entry ->
+                val name = entry.name.trim()
+                FoodItem(
+                    id        = "receipt_${now}_${entry.id}",
+                    name      = name,
+                    category  = FoodCategoryMapper.getCategory(name),
+                    expiry    = entry.expiry,
+                    qty       = "${entry.qty}개",
+                    location  = "냉장고",
+                    addedDays = 0,
+                )
+            }
+        if (items.isEmpty()) {
+            _state.update { it.copy(receiptScanOpen = false) }
+            return
+        }
+
+        items.forEach { autoAddMarketItem(it, showToast = false) }
+
+        val names   = items.map { it.name }
+        val more    = if (names.size > 3) " 외 ${names.size - 3}개" else ""
+        val subject = names.take(3).joinToString(", ") + more
+        val msg     = "$subject${subject.josa("이", "가")} 입고됐습니다"
+        _state.update {
+            it.copy(
+                receiptScanOpen = false,
+                toast           = "영수증으로 ${items.size}개 입고했어요 🧾",
+                pendingTts      = msg,
+            )
+        }
     }
 
     fun openPhoneScan(mode: ScanMode) =
