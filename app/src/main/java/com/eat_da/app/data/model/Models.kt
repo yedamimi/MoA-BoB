@@ -58,6 +58,11 @@ data class FoodItem(
     fun freshnessStatus(): FreshnessStatus? = freshnessStatusOf(freshness)
 }
 
+// 신선도 확인(웹캠 OpenCV 분석)을 지원하는 카테고리
+// scan.py 모델이 인식하는 신선식품(과일·채소)만 해당. 가공식품·육류 등은 신선도 확인 UI를 숨김
+val FoodCategory.supportsFreshnessCheck: Boolean
+    get() = this == FoodCategory.VEGETABLE || this == FoodCategory.FRUIT
+
 enum class ExpiryStatus { EXPIRED, CRITICAL, WARNING, SOON, FRESH }
 
 // 신선도 등급 (앱 전체 공통 기준)
