@@ -2,6 +2,7 @@ package com.eatda.app.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.eatda.app.data.allergenMatches
 import com.eatda.app.data.defaultAllergens
 import com.eatda.app.data.model.*
 import com.eatda.app.util.Household
@@ -19,10 +20,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import androidx.lifecycle.viewModelScope
 import com.eatda.app.data.api.RecipeApiService
 import kotlinx.coroutines.launch
 import com.eatda.app.data.FoodCategoryMapper
+import com.eatda.app.util.parseQty
 
 // ── 열거형 ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +66,9 @@ private val DEFAULT_SHELF_DAYS: Map<String, Long> = mapOf(
     "소고기" to 3L, "생선" to 2L,
 )
 
+// 이 시간 안에 연달아 들어온 스캔 결과는 한 문장으로 읽음
+private const val SCAN_TTS_DEBOUNCE_MS = 800L
+
 // ── 상태 ──────────────────────────────────────────────────────────────────────
 
 data class AppState(
@@ -81,6 +87,10 @@ data class AppState(
     val notifications: List<AppNotification> = emptyList(),
     val recipes: List<Recipe> = emptyList(),
     val recipeFocusIngredient: String? = null,
+    val inventoryGroupName: String? = null,          // 재고 화면에서 보고 있는 식재료 그룹 (null이면 전체 목록)
+    val streamUrl: String? = null,                   // scan.py 웹캠 MJPEG 스트림 주소 (스크립트 꺼지면 null)
+    val scanHint: String? = null,                    // scan.py가 보내는 한글 안내 문구 (스캔 화면 상태 바)
+    val freshnessChecks: Map<String, FreshnessCheck> = emptyMap(), // 식재료 이름별 최근 신선도 확인 기록
     val selectedRecipe: Recipe? = null,
     val scanResults: List<ScanResult> = emptyList(),
     val scanPhase: String = "idle",
@@ -102,25 +112,37 @@ data class AppState(
 // ── qty 파싱 헬퍼 (숫자/문자열 둘 다 대응) ─────────────────────────────────────
 
 // Firebase qty 필드가 숫자(3)든 문자열("3개")이든 정수만 뽑아냄
+// "1/2통"처럼 정수가 아닌 문자열은 default
 private fun DataSnapshot.qtyNumber(default: Int = 0): Int =
     when (val v = child("qty").value) {
         is Number -> v.toInt()
-        is String -> v.filter { it.isDigit() }.toIntOrNull() ?: default
+        is String -> parseQty(v)?.amount ?: default
         else      -> default
     }
 
 // "3개" 형태의 표시용 문자열 생성. unit 필드가 있으면 우선 사용
-private fun DataSnapshot.qtyText(defaultUnit: String = "개"): String {
-    val unitField = child("unit").getValue(String::class.java)
-    return when (val v = child("qty").value) {
-        is Number -> "${v.toInt()}${unitField ?: defaultUnit}"
+private fun DataSnapshot.qtyText(defaultUnit: String = "개"): String =
+    formatQty(
+        value = child("qty").value,
+        unitField = child("unit").getValue(String::class.java),
+        defaultUnit = defaultUnit,
+    )
+
+// qty 값(숫자 또는 문자열)을 "3개" 형태로 변환
+// 정수가 아닌 문자열("1/2통")은 그대로 표시하고, 숫자가 없으면 1로 간주
+private fun formatQty(value: Any?, unitField: String?, defaultUnit: String = "개"): String {
+    val unit = unitField?.takeIf { it.isNotBlank() } ?: defaultUnit
+    return when (value) {
+        is Number -> "${value.toInt()}$unit"
         is String -> {
-            val num  = v.filter { it.isDigit() }
-            val unit = v.filter { !it.isDigit() }.trim()
-            if (num.isEmpty()) "1${unitField ?: defaultUnit}"
-            else "$num${unit.ifBlank { unitField ?: defaultUnit }}"
+            val parsed = parseQty(value, defaultUnit = unit)
+            when {
+                parsed != null              -> "${parsed.amount}${parsed.unit}"
+                value.none { it.isDigit() } -> "1$unit"
+                else                        -> value.trim()
+            }
         }
-        else -> "1${unitField ?: defaultUnit}"
+        else -> "1$unit"
     }
 }
 
@@ -140,10 +162,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var arrivalsListener:          ChildEventListener? = null
     private var pendingDeliveryListener:   ValueEventListener? = null
     private var householdMemberListener:   ValueEventListener? = null
+    private var streamUrlListener:         ValueEventListener? = null
+    private var scanHintListener:          ValueEventListener? = null
+    private var allergensListener:         ValueEventListener? = null
+    private var freshnessChecksListener:   ValueEventListener? = null
     private var allergenHapticFired = false
 
-    // 자투리 상태는 현재 앱 실행 중에만 유지하며 Firebase에는 저장하지 않습니다.
-    private val remnantItemIds = mutableSetOf<String>()
+    // 스캔 결과 음성 안내 묶음 (announceScanResults)
+    private val pendingScanNames = mutableListOf<String>()
+    private var scanTtsJob: kotlinx.coroutines.Job? = null
 
     private val listenerStartTime = System.currentTimeMillis()
 
@@ -158,6 +185,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         listenToScanStatus()
         listenToArrivals()
         listenToPendingDelivery()
+        listenToStreamUrl()
+        listenToScanHint()
+        listenToAllergens()
+        listenToFreshnessChecks()
         loadRecipes()
     }
 
@@ -200,7 +231,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             .getValue(Boolean::class.java) ?: false
 
                         val itemId = child.key ?: return@runCatching null
-                        val remnant = synchronized(remnantItemIds) { itemId in remnantItemIds }
+                        val remnant = child.child("hasRemnant")
+                            .getValue(Boolean::class.java) ?: false
 
                         FoodItem(
                             id = itemId,
@@ -224,9 +256,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                 val webcam = _state.value.webcamItems
 
-                val combined = dbItems + webcam.filter { w ->
+                val combined = (dbItems + webcam.filter { w ->
                     dbItems.none { it.name == w.name }
-                }
+                }).withAllergenFlags(_state.value.allergens)
 
                 val notifs = buildNotifications(
                     combined,
@@ -259,10 +291,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun listenToScanResults() {
         scanResultsListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val results = snapshot.children.mapNotNull { parseScanResult(it) }
+                // 최근에 인식한 항목이 위로 오도록 역순
+                val results = snapshot.children.mapNotNull { parseScanResult(it) }.reversed()
                 val mode = _state.value.activeScanMode
-                val hasAllergen = results.any { r ->
-                    r.isAllergen && _state.value.allergens.any { a -> a.name == r.name }
+
+                // 연속 스캔 중 결과가 계속 쌓이므로 새로 들어온 항목만 알림/음성 대상
+                val prevIds = _state.value.scanResults.map { it.id }.toSet()
+                val newResults = results.filter { it.id !in prevIds }
+
+                // 알레르기 여부는 사용자가 등록한 알레르기 목록으로 판단 (알류 → 계란 등 포함)
+                val hasAllergen = newResults.any { r ->
+                    _state.value.allergens.any { a -> allergenMatches(a.name, r.name) }
                 }
                 val haptic = if (
                     hasAllergen && !allergenHapticFired &&
@@ -273,24 +312,46 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     HapticEvent.ALLERGEN
                 } else null
 
-                val ttsText = if (results.isNotEmpty()) {
-                    val names = results.take(3).joinToString(", ") { it.name }
-                    val more  = if (results.size > 3) " 외 ${results.size - 3}개" else ""
-                    "$names${more}가 인식됐습니다"
-                } else null
+                // 인식된 순서대로 읽도록 다시 시간순으로
+                if (newResults.isNotEmpty()) announceScanResults(newResults.reversed().map { it.name })
 
                 _state.update { s ->
                     s.copy(
                         scanResults   = results,
                         scanPhase     = if (results.isNotEmpty()) "detected" else s.scanPhase,
                         pendingHaptic = haptic ?: s.pendingHaptic,
-                        pendingTts    = ttsText ?: s.pendingTts,
                     )
                 }
             }
             override fun onCancelled(error: DatabaseError) {}
         }
         db.child("scan_results").addValueEventListener(scanResultsListener!!)
+    }
+
+    // scan.py는 동시에 인식한 식재료도 한 건씩 따로 올리므로,
+    // 짧은 시간 안에 들어온 결과를 모아 한 문장으로 읽음 (앞 문장이 뒤 문장에 덮이지 않도록)
+    private fun announceScanResults(names: List<String>) {
+        pendingScanNames += names
+        scanTtsJob?.cancel()
+        scanTtsJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(SCAN_TTS_DEBOUNCE_MS)
+            val batch = pendingScanNames.toList()
+            pendingScanNames.clear()
+            if (batch.isEmpty()) return@launch
+
+            // 같은 식재료를 여러 개 인식하면 "귤 2개"처럼 묶음
+            val labels = batch.groupingBy { it }.eachCount()
+                .map { (name, count) -> if (count > 1) "$name ${count}개" else name }
+            val more    = if (labels.size > 3) " 외 ${labels.size - 3}개" else ""
+            val subject = labels.take(3).joinToString(", ") + more
+            val verb = when (_state.value.activeScanMode) {
+                ScanMode.IN  -> "입고됐습니다"
+                ScanMode.OUT -> "출고됐습니다"
+                else         -> "인식됐습니다"
+            }
+            val msg = "$subject${subject.josa("이", "가")} $verb"
+            _state.update { it.copy(pendingTts = msg) }
+        }
     }
 
     private fun listenToScanStatus() {
@@ -302,6 +363,64 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             override fun onCancelled(error: DatabaseError) {}
         }
         db.child("scan_status").addValueEventListener(scanStatusListener!!)
+    }
+
+    // scan.py가 진행 상황을 한글로 eatda/scan_hint에 기록함
+    private fun listenToScanHint() {
+        scanHintListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val hint = snapshot.getValue(String::class.java)?.takeIf { it.isNotBlank() }
+                _state.update { it.copy(scanHint = hint) }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        db.child("scan_hint").addValueEventListener(scanHintListener!!)
+    }
+
+    // scan.py가 신선도 확인 때 MoA-BoB/freshnessChecks/{이름}에 기록함
+    private fun listenToFreshnessChecks() {
+        freshnessChecksListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val checks = snapshot.children.mapNotNull { child ->
+                    val name      = child.key ?: return@mapNotNull null
+                    val score     = (child.child("score").value as? Number)?.toInt() ?: return@mapNotNull null
+                    val checkedAt = (child.child("checkedAt").value as? Number)?.toLong() ?: return@mapNotNull null
+                    name to FreshnessCheck(score = score, checkedAt = checkedAt)
+                }.toMap()
+                _state.update { it.copy(freshnessChecks = checks) }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        rootDb.child("MoA-BoB").child("freshnessChecks").addValueEventListener(freshnessChecksListener!!)
+    }
+
+    // Firebase에 저장된 알레르기 목록이 있으면 사용, 없으면 기본값(defaultAllergens) 유지
+    private fun listenToAllergens() {
+        allergensListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (!snapshot.exists()) return
+                val list = snapshot.children.mapNotNull { child ->
+                    val id   = child.key ?: return@mapNotNull null
+                    val name = child.child("name").getValue(String::class.java) ?: return@mapNotNull null
+                    Allergen(id = id, name = name, addedAt = child.child("addedAt").getValue(String::class.java) ?: "")
+                }
+                _state.update { it.withAllergens(list) }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        db.child("allergens").addValueEventListener(allergensListener!!)
+    }
+
+    // scan.py가 시작할 때 자기 PC 주소를 eatda/stream_url에 기록함
+    private fun listenToStreamUrl() {
+        streamUrlListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val url = snapshot.getValue(String::class.java)?.takeIf { it.isNotBlank() }
+                _state.update { it.copy(streamUrl = url) }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        db.child("stream_url").addValueEventListener(streamUrlListener!!)
     }
 
     private fun listenToArrivals() {
@@ -332,8 +451,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun autoAddMarketItem(item: FoodItem, showToast: Boolean = true) {
         val inventoryRef = rootDb.child("MoA-BoB").child("foodInventory")
 
-        val qty    = item.qty.filter { it.isDigit() }.toIntOrNull() ?: 1
-        val unit   = item.qty.filter { !it.isDigit() }.trim().ifBlank { "개" }
+        // Firebase qty는 정수만 저장 가능 → "1/2통" 같은 값은 1로 올려 저장
+        val parsed = parseQty(item.qty)
+        val qty    = parsed?.amount?.coerceAtLeast(1) ?: 1
+        val unit   = parsed?.unit ?: item.qty.filter { it.isLetter() }.ifBlank { "개" }
         val expiry = item.expiry.toString()
 
         inventoryRef.get().addOnSuccessListener { snapshot ->
@@ -377,9 +498,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val stocksOnly = s.inventory.filter { inv ->
                 s.webcamItems.none { it.name == inv.name }
             }
-            val combined = stocksOnly + newWebcam.filter { w ->
+            val combined = (stocksOnly + newWebcam.filter { w ->
                 stocksOnly.none { it.name == w.name }
-            }
+            }).withAllergenFlags(s.allergens)
             val notifs = buildNotifications(combined, s.settings, s.allergens)
 
             s.copy(
@@ -415,7 +536,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             name       = name,
                             category   = runCatching { FoodCategory.valueOf(catStr) }.getOrDefault(FoodCategory.GRAIN),
                             expiry     = expiry,
-                            qty        = o.optString("qty", "1개"),
+                            qty        = formatQty(
+                                value     = o.opt("qty"),
+                                unitField = o.optString("unit").takeIf { it.isNotEmpty() },
+                            ),
                             location   = o.optString("location", "냉장 1칸"),
                             addedDays  = 0,
                             isAllergen = o.optBoolean("isAllergen", false),
@@ -508,7 +632,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         if (settings.notifAllergen) {
             inventory
-                .filter { item -> allergens.any { a -> a.name == item.name } }
+                .filter { item -> allergens.any { a -> allergenMatches(a.name, item.name) } }
                 .forEach { item ->
                     notifs.add(AppNotification(
                         id = "allergen_${item.id}", type = NotifType.EXPIRY_SOON,
@@ -557,12 +681,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val confidence = (snap.child("confidence").value as? Number)?.toDouble()
         val isAllergen = snap.child("isAllergen").getValue(Boolean::class.java) ?: false
         val qty        = snap.child("qty").value?.toString() ?: ""
-        ScanResult(id = id, name = name, confidence = confidence, isAllergen = isAllergen, qty = qty)
+        val category   = snap.child("category").getValue(String::class.java)
+            ?.let { runCatching { FoodCategory.valueOf(it) }.getOrNull() }
+        val expiry     = snap.child("expiry").getValue(String::class.java)
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        val freshness  = (snap.child("freshness").value as? Number)?.toInt()?.takeIf { it >= 0 }
+        ScanResult(
+            id              = id,
+            name            = name,
+            confidence      = confidence,
+            suggestedExpiry = expiry,
+            category        = category,
+            freshness       = freshness,
+            // 앱 공통 기준 (70% 이상 신선 / 30% 이하 부패 / 그 사이 보통)
+            freshnessStatus = freshnessStatusOf(freshness),
+            isAllergen      = isAllergen,
+            qty             = qty,
+        )
     }.getOrNull()
 
     // ── 화면 / 시트 제어 ──────────────────────────────────────────────────────
 
-    fun navigate(screen: Screen) = _state.update { it.copy(screen = screen) }
+    // 다른 화면으로 이동하면 재고 그룹 화면은 닫고 전체 목록부터 보여줌
+    fun navigate(screen: Screen) = _state.update { it.copy(screen = screen, inventoryGroupName = null) }
+
+    fun openInventoryGroup(foodName: String?) = _state.update { it.copy(inventoryGroupName = foodName) }
 
     fun openScanSheet()  = _state.update { it.copy(scanSheetOpen = true) }
     fun closeScanSheet() = _state.update { it.copy(scanSheetOpen = false) }
@@ -578,7 +721,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(recipeFocusIngredient = null, screen = Screen.RECIPES) }
     }
 
+    // 재고 그룹 화면에서 레시피 추천으로 들어온 경우 → 보던 그룹 화면으로 복귀
+    // 그 외 → 홈으로
+    fun backFromRecipes() {
+        _state.update {
+            if (it.recipeFocusIngredient != null) {
+                it.copy(screen = Screen.INVENTORY, recipeFocusIngredient = null)
+            } else {
+                it.copy(screen = Screen.HOME, inventoryGroupName = null)
+            }
+        }
+    }
+
+    // 스캔 시트에서 시작 → 신선도 확인 대상 없음 (보이는 식재료 전부 기록)
     fun startScan(mode: ScanMode) {
+        db.child("fresh_target").removeValue()
+        beginScan(mode)
+    }
+
+    // 재고 화면 "신선도 확인" 버튼 → 해당 식재료만 기록
+    // scan.py가 모드 변경 시 대상을 읽으므로 current_mode보다 먼저 기록
+    fun startFreshCheck(foodName: String) {
+        db.child("fresh_target").setValue(foodName)
+        beginScan(ScanMode.FRESH)
+    }
+
+    private fun beginScan(mode: ScanMode) {
         allergenHapticFired = false
         val firebaseMode = when (mode) {
             ScanMode.FRESH -> "fresh_scan"
@@ -591,6 +759,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeScan() {
+        db.child("fresh_target").removeValue()
         rootDb.child("current_mode").setValue("IDLE")
         db.child("scan_status").setValue("idle")
         _state.update { it.copy(activeScanMode = null, scanResults = emptyList(), scanPhase = "idle") }
@@ -598,7 +767,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun confirmScan(items: List<ScanResult>) {
         val mode = _state.value.activeScanMode
+        if (mode == ScanMode.ALLERGEN) addAllergens(items.map { it.name })
         db.child("confirm_scan").setValue(mode?.name ?: "IDLE")
+        db.child("fresh_target").removeValue()
         rootDb.child("current_mode").setValue("IDLE")
         db.child("scan_status").setValue("idle")
         val msg = when (mode) {
@@ -609,6 +780,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             null              -> ""
         }
         _state.update { it.copy(activeScanMode = null, toast = msg, scanResults = emptyList(), scanPhase = "idle") }
+    }
+
+    // 결과 목록만 비우고 scan.py는 계속 스캔 (연속 스캔 모드)
+    fun rescan() {
+        allergenHapticFired = false
+        db.child("scan_results").removeValue()
+        _state.update { it.copy(scanResults = emptyList(), scanPhase = "scanning") }
     }
 
     fun openPhoneScan(mode: ScanMode) =
@@ -632,7 +810,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(phoneScanMode = null, phoneScanResults = emptyList(), toast = msg) }
     }
 
-    fun openItem(item: FoodItem) = _state.update { it.copy(openItem = item) }
+    fun openItem(item: FoodItem) = _state.update { it.copy(openItem = item.withAllergenFlag(it.allergens)) }
     fun closeItem()              = _state.update { it.copy(openItem = null) }
 
     fun openVoice()  = _state.update { it.copy(voiceOverlayOpen = true) }
@@ -687,12 +865,54 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissToast() = _state.update { it.copy(toast = null) }
 
     fun removeAllergen(id: String) {
-        db.child("allergens").child(id).removeValue()
-        _state.update { s ->
-            val newAllergens = s.allergens.filter { a -> a.id != id }
-            val notifs = buildNotifications(s.inventory, s.settings, newAllergens)
-            s.copy(allergens = newAllergens, notifications = notifs)
+        val newAllergens = _state.value.allergens.filter { a -> a.id != id }
+        saveAllergens(newAllergens)
+        _state.update { it.withAllergens(newAllergens) }
+    }
+
+    // 마이페이지에서 직접 입력하거나 대표 항목을 눌러 등록
+    fun addAllergen(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        if (_state.value.allergens.any { it.name == trimmed }) {
+            _state.update { it.copy(toast = "${trimmed}${trimmed.josa("은", "는")} 이미 등록돼 있어요") }
+            return
         }
+        addAllergens(listOf(trimmed))
+    }
+
+    private fun addAllergens(names: List<String>) {
+        val current  = _state.value.allergens
+        val existing = current.map { it.name }.toSet()
+        val today    = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))
+        val now      = System.currentTimeMillis()
+        val added = names.distinct()
+            .filter { it !in existing }
+            .mapIndexed { i, name -> Allergen(id = "a_${now}_$i", name = name, addedAt = today) }
+        if (added.isEmpty()) return
+
+        val newAllergens = current + added
+        saveAllergens(newAllergens)
+        _state.update { it.withAllergens(newAllergens) }
+    }
+
+    // 알레르기 목록이 바뀌면 재고 알레르기 표시와 알림도 함께 갱신
+    private fun AppState.withAllergens(list: List<Allergen>): AppState {
+        val flagged = inventory.withAllergenFlags(list)
+        return copy(
+            allergens     = list,
+            inventory     = flagged,
+            webcamItems   = webcamItems.withAllergenFlags(list),
+            openItem      = openItem?.withAllergenFlag(list),
+            notifications = buildNotifications(flagged, settings, list),
+        )
+    }
+
+    // 기본 알레르기(우유, 계란)도 함께 저장되도록 목록 전체를 씀
+    private fun saveAllergens(list: List<Allergen>) {
+        db.child("allergens").setValue(
+            list.associate { it.id to mapOf("name" to it.name, "addedAt" to it.addedAt) }
+        )
     }
 
     fun updateSettings(newSettings: AppSettings) {
@@ -751,8 +971,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateItemQty(itemId: String, newQty: String) {
         val inventoryRef = rootDb.child("MoA-BoB").child("foodInventory")
-        val qty  = newQty.filter { it.isDigit() }.toIntOrNull() ?: 0
-        val unit = newQty.filter { !it.isDigit() }.trim().ifBlank { "개" }
+
+        // 형식이 잘못된 값을 0으로 보고 재고를 지워버리지 않도록 먼저 검사
+        val parsed = parseQty(newQty) ?: run {
+            _state.update { it.copy(toast = "수량 형식이 올바르지 않아요") }
+            return
+        }
+        val qty  = parsed.amount
+        val unit = parsed.unit
         val itemRef = inventoryRef.child(itemId)
 
         if (qty <= 0) {
@@ -797,9 +1023,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val current = _state.value.inventory.firstOrNull { it.id == itemId } ?: return
         val newValue = !current.hasRemnant
 
-        // 세션 메모리에만 기록합니다. Firebase에는 읽거나 쓰지 않습니다.
-        synchronized(remnantItemIds) {
-            if (newValue) remnantItemIds.add(itemId) else remnantItemIds.remove(itemId)
+        // 웹캠 인식 항목은 foodInventory에 없으므로 화면에서만 표시하고,
+        // 나머지는 Firebase hasRemnant 필드에 저장해 앱을 다시 켜도 유지
+        val isWebcamOnly = _state.value.webcamItems.any { it.id == itemId }
+        if (!isWebcamOnly) {
+            rootDb.child("MoA-BoB").child("foodInventory").child(itemId)
+                .child("hasRemnant").setValue(newValue)
+                .addOnFailureListener {
+                    _state.update { it.copy(toast = "자투리 저장에 실패했어요.") }
+                }
         }
 
         _state.update { s ->
@@ -1076,11 +1308,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         scanResultsListener?.let      { db.child("scan_results").removeEventListener(it) }
         scanStatusListener?.let       { db.child("scan_status").removeEventListener(it) }
         arrivalsListener?.let         { db.child("inventory").removeEventListener(it) }
+        streamUrlListener?.let        { db.child("stream_url").removeEventListener(it) }
+        scanHintListener?.let         { db.child("scan_hint").removeEventListener(it) }
+        allergensListener?.let        { db.child("allergens").removeEventListener(it) }
+        freshnessChecksListener?.let  { rootDb.child("MoA-BoB").child("freshnessChecks").removeEventListener(it) }
         _state.value.household?.id?.let { hid ->
             householdMemberListener?.let { HouseholdManager.removeListener(hid, it) }
         }
     }
 }
+
+// 등록한 알레르기 목록 기준으로 재고의 알레르기 표시(isAllergen)를 다시 계산
+// (Firebase에 저장된 isAllergen 값 대신 사용자의 알레르기 목록을 기준으로 함)
+private fun FoodItem.withAllergenFlag(allergens: List<Allergen>): FoodItem =
+    copy(isAllergen = allergens.any { a -> allergenMatches(a.name, name) })
+
+private fun List<FoodItem>.withAllergenFlags(allergens: List<Allergen>): List<FoodItem> =
+    map { it.withAllergenFlag(allergens) }
 
 // 받침 유무에 따라 한국어 조사 선택 ("이/가", "을/를", "은/는" 등)
 private fun String.josa(받침있음: String, 받침없음: String): String {
