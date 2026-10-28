@@ -693,9 +693,10 @@ private fun InventoryGroupView(
             // ─────────────────────────────
             // 최근 확인한 신선도 + 신선도 확인
             // 같은 이름의 재고 묶음은 구분할 수 없으므로 식재료 단위로 기록
+            // 신선식품(과일·채소)만 표시
             // ─────────────────────────────
 
-            item {
+            if (foodItems.firstOrNull()?.category?.supportsFreshnessCheck == true) item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1335,7 +1336,7 @@ fun InventoryRow(
             }
 
 
-            if (freshnessCheck != null) {
+            if (freshnessCheck != null && item.category.supportsFreshnessCheck) {
                 Text(
                     text = freshnessCheck.summaryText(),
                     fontSize = 10.sp,
