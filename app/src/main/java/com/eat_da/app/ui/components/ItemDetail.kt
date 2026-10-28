@@ -10,12 +10,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eatda.app.data.*
 import com.eatda.app.data.model.*
 import com.eatda.app.ui.theme.*
+import com.eatda.app.util.parseQty
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import java.time.Instant
@@ -26,19 +26,21 @@ import java.time.ZoneId
 fun ItemDetailSheet(
     colors: EatdaColors,
     item: FoodItem,
+    freshnessCheck: FreshnessCheck? = null,   // 이 식재료 이름의 최근 신선도 확인 기록
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onUpdateExpiry: (String) -> Unit = {},   // "yyyy-MM-dd" 형식
     onUpdateQty: (String) -> Unit = {},      // "3개", "2봉지" 등
-    onRecipeRecommend: (String) -> Unit = {},
     onToggleRemnant: () -> Unit = {},
     onDelete: () -> Unit = {},
 
     ) {
-    var showStorageGuide by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showQtyDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // "3개" → (3, "개"). "1/2통"처럼 정수가 아닌 수량은 스테퍼로 수정할 수 없으므로 null
+    val qtyParts = remember(item.qty) { parseQty(item.qty) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -56,11 +58,12 @@ fun ItemDetailSheet(
         ) {
             val cat = item.category
             val dl = item.daysLeft()
-            val freshStatus = item.freshnessStatus()
+            val freshStatus = freshnessCheck?.status
 
-            val freshnessColor = when {
-                (item.freshness ?: 0) >= 80 -> colors.accent
-                (item.freshness ?: 0) >= 60 -> colors.warning
+            // 등급 기준: FreshnessStatus (70% 이상 신선 / 30% 이하 부패 / 그 사이 보통)
+            val freshnessColor = when (freshStatus) {
+                FreshnessStatus.FRESH -> colors.accent
+                FreshnessStatus.ATTENTION -> colors.warning
                 else -> colors.danger
             }
 
@@ -136,38 +139,40 @@ fun ItemDetailSheet(
                             color = colors.textMuted
                         )
 
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(colors.surfaceAlt)
-                                .border(
-                                    1.dp,
-                                    colors.border,
-                                    RoundedCornerShape(6.dp)
-                                )
-                                .clickable {
-                                    showQtyDialog = true
-                                }
-                                .padding(
-                                    horizontal = 8.dp,
-                                    vertical = 3.dp
-                                ),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        if (qtyParts != null) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(colors.surfaceAlt)
+                                    .border(
+                                        1.dp,
+                                        colors.border,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable {
+                                        showQtyDialog = true
+                                    }
+                                    .padding(
+                                        horizontal = 8.dp,
+                                        vertical = 3.dp
+                                    ),
                             ) {
-                                Text(
-                                    "✏️",
-                                    fontSize = 10.sp
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                ) {
+                                    Text(
+                                        "✏️",
+                                        fontSize = 10.sp
+                                    )
 
-                                Text(
-                                    "수정",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = colors.textMuted
-                                )
+                                    Text(
+                                        "수정",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.textMuted
+                                    )
+                                }
                             }
                         }
 
@@ -297,10 +302,13 @@ fun ItemDetailSheet(
 
                 Text(
                     when {
-                        dl <= 0 ->
+                        dl < 0 ->
                             "식약처 DB 기준 권장 소비기한 경과"
 
-                        dl <= 1 ->
+                        dl == 0 ->
+                            "오늘까지 소비를 권장해요"
+
+                        dl == 1 ->
                             "D-1 자동 알림 발송됨"
 
                         else ->
@@ -312,8 +320,9 @@ fun ItemDetailSheet(
                 )
             }
 
-            // ── 신선도 카드 ───────────────────────────────────────────────────
-            if (item.freshness != null) {
+            // ── 최근 확인한 신선도 카드 ───────────────────────────────────────
+            // 같은 이름의 재고 묶음은 구분할 수 없으므로 식재료 이름 단위의 최근 기록을 표시
+            if (freshnessCheck != null && freshStatus != null) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -325,7 +334,6 @@ fun ItemDetailSheet(
                             RoundedCornerShape(14.dp)
                         )
                         .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
                 ) {
                     Row(
                         modifier = Modifier
@@ -345,7 +353,7 @@ fun ItemDetailSheet(
                             )
 
                             Text(
-                                "신선도 분석 (OpenCV)",
+                                "최근 확인한 신선도",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = colors.textMuted
@@ -353,7 +361,7 @@ fun ItemDetailSheet(
                         }
 
                         Text(
-                            "웹캠 스캔 결과",
+                            freshnessCheck.agoText(),
                             fontSize = 11.sp,
                             color = colors.textFaint
                         )
@@ -365,26 +373,14 @@ fun ItemDetailSheet(
                         modifier = Modifier.padding(bottom = 8.dp),
                     ) {
                         Text(
-                            "${item.freshness}%",
+                            "${freshnessCheck.score}%",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = freshnessColor
                         )
 
                         Text(
-                            when (freshStatus) {
-                                FreshnessStatus.FRESH ->
-                                    "신선"
-
-                                FreshnessStatus.ATTENTION ->
-                                    "주의"
-
-                                FreshnessStatus.ROTTEN ->
-                                    "위험"
-
-                                null ->
-                                    ""
-                            },
+                            freshStatus.label,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = freshnessColor,
@@ -400,12 +396,23 @@ fun ItemDetailSheet(
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(item.freshness / 100f)
+                                .fillMaxWidth(freshnessCheck.score.coerceIn(0, 100) / 100f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(999.dp))
                                 .background(freshnessColor),
                         )
                     }
+
+                    Text(
+                        if (freshnessCheck.isStale()) {
+                            "${freshnessCheck.checkedAtText()} 확인 · 오래된 기록이에요. 다시 확인해보세요"
+                        } else {
+                            "${freshnessCheck.checkedAtText()} 확인"
+                        },
+                        fontSize = 11.sp,
+                        color = colors.textFaint,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 }
             } else {
                 Row(
@@ -430,14 +437,14 @@ fun ItemDetailSheet(
 
                     Column {
                         Text(
-                            "신선도 미분석",
+                            "아직 신선도를 확인하지 않았어요",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = colors.text
                         )
 
                         Text(
-                            "홈 화면 카메라 버튼 → 신선도 확인 스캔",
+                            "재고 목록 → ${item.name} → 신선도 확인",
                             fontSize = 11.sp,
                             color = colors.textMuted,
                             modifier = Modifier.padding(top = 2.dp)
@@ -445,8 +452,6 @@ fun ItemDetailSheet(
                     }
                 }
             }
-
-
 
             // ── 재고 삭제 버튼 ────────────────────────────────────────────────
             Box(
@@ -495,132 +500,6 @@ fun ItemDetailSheet(
                     fontWeight = FontWeight.Bold,
                     color = colors.text
                 )
-            }
-        }
-    }
-
-    // ── 보관 가이드 다이얼로그 ────────────────────────────────────────────────
-    if (showStorageGuide) {
-        Dialog(
-            onDismissRequest = {
-                showStorageGuide = false
-            },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false
-            ),
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .width(320.dp)
-                        .heightIn(
-                            min = 300.dp,
-                            max = 420.dp
-                        )
-                        .border(
-                            1.dp,
-                            colors.border,
-                            RoundedCornerShape(20.dp)
-                        ),
-                    shape = RoundedCornerShape(20.dp),
-                    color = colors.bg,
-                    shadowElevation = 12.dp,
-                    tonalElevation = 6.dp,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(colors.accentSoft),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                EatdaIcon(
-                                    EatdaIcons.Sparkle,
-                                    tint = colors.accentDeep,
-                                    size = 20.dp
-                                )
-                            }
-
-                            Column(
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    "맞춤 보관 가이드",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = colors.text
-                                )
-
-                                Text(
-                                    "${foodEmoji[item.name] ?: ""} ${item.name}",
-                                    fontSize = 12.sp,
-                                    color = colors.textMuted,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(
-                            Modifier.height(16.dp)
-                        )
-
-                        HorizontalDivider(
-                            color = colors.border
-                        )
-
-                        Spacer(
-                            Modifier.height(16.dp)
-                        )
-
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            Text(
-                                storageGuide(item.name),
-                                fontSize = 14.sp,
-                                lineHeight = 23.sp,
-                                color = colors.text
-                            )
-                        }
-
-                        Spacer(
-                            Modifier.height(16.dp)
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colors.accent)
-                                .clickable {
-                                    showStorageGuide = false
-                                }
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                "확인",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
             }
         }
     }
@@ -701,23 +580,11 @@ fun ItemDetailSheet(
     }
 
     // ── 개수 수정 스테퍼 다이얼로그 ───────────────────────────────────────────
-    if (showQtyDialog) {
-        val qtyNum = remember(item.qty) {
-            item.qty
-                .filter { it.isDigit() }
-                .toIntOrNull()
-                ?: 1
-        }
-
-        val qtyUnit = remember(item.qty) {
-            item.qty
-                .filterNot { it.isDigit() }
-                .trim()
-                .ifEmpty { "개" }
-        }
+    if (showQtyDialog && qtyParts != null) {
+        val (qtyNum, qtyUnit) = qtyParts
 
         var count by remember {
-            mutableIntStateOf(qtyNum)
+            mutableIntStateOf(qtyNum.coerceAtLeast(1))
         }
 
         Dialog(
@@ -976,5 +843,6 @@ fun storageGuideSummary(name: String): String = when (name) {
     "삼겹살" -> "냉장고에 넣어 보관하세요. 신선도를 오래 유지할 수 있습니다."
     "연어" -> "냉장고에 넣어 보관하세요. 신선도를 오래 유지할 수 있습니다."
     "아이셔" -> "포장지에 나와 있는 보관 방법을 확인하세요."
+    "달콤연근조림" -> "포장지에 나와 있는 보관 방법을 확인하세요."
     else -> "신선도를 유지할 수 있도록 적절한 환경에서 보관하세요."
 }
