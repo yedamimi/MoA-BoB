@@ -60,13 +60,11 @@ fun CameraScanView(
         ScanMode.IN       -> "입고 스캔"
         ScanMode.OUT      -> "출고 스캔"
         ScanMode.FRESH    -> "신선도 스캔"
-        ScanMode.ALLERGEN -> "알레르기 스캔"
     }
     val modeColor = when (mode) {
         ScanMode.IN       -> colors.accent
         ScanMode.OUT      -> Color(0xFFD17231)
         ScanMode.FRESH    -> Color(0xFF5A4FB5)
-        ScanMode.ALLERGEN -> colors.danger
     }
 
     Box(
