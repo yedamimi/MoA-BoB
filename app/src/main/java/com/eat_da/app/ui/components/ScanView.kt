@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eatda.app.data.allergenMatches
 import com.eatda.app.data.foodEmoji
 import com.eatda.app.data.model.*
 import com.eatda.app.ui.theme.*
@@ -36,8 +37,11 @@ fun ScanView(
     allergens: List<Allergen>,
     scanResults: List<ScanResult>,   // Firebase에서 수신한 YOLO 감지 결과
     scanPhase: String,               // "idle" | "scanning" | "detected"
+    streamUrl: String?,              // scan.py가 Firebase에 올린 웹캠 MJPEG 주소
+    scanHint: String?,               // scan.py가 보내는 한글 안내 문구
     onClose: () -> Unit,
     onConfirm: (List<ScanResult>) -> Unit,
+    onRescan: () -> Unit,            // 결과 목록만 비우고 계속 스캔
 ) {
     val context    = LocalContext.current
     val isIn       = mode == ScanMode.IN
@@ -75,8 +79,11 @@ fun ScanView(
     // ── 알레르기 감지 → HapticManager 진동 ───────────────────────────────────
     var allergyAlert by remember { mutableStateOf<ScanResult?>(null) }
     LaunchedEffect(scanResults) {
+        // 알레르기 등록 스캔에서는 경고하지 않음
+        if (isAllergen) return@LaunchedEffect
+        // 사용자가 등록한 알레르기 목록과 이름으로 비교
         val found = scanResults.firstOrNull { r ->
-            r.isAllergen && allergens.any { a -> a.name == r.name }
+            allergens.any { a -> allergenMatches(a.name, r.name) }
         }
         if (found != null && allergyAlert == null) {
             allergyAlert = found
@@ -150,36 +157,40 @@ fun ScanView(
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             // ── 웹캠 뷰 영역 ─────────────────────────────────────────────────
+            // scan.py 스트림이 연결되면 실시간 화면, 아니면 기존 대기 화면
             item {
-                Box(
+                MjpegView(
+                    url = streamUrl,
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(4f / 3f)
                         .clip(RoundedCornerShape(16.dp))
                         .background(colors.surface)
                         .border(1.dp, colors.border, RoundedCornerShape(16.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(14.dp)
-                                .clip(CircleShape)
-                                .background(accent)
-                                .graphicsLayer { alpha = pulseDot }
-                        )
-                        Text("웹캠 인식 중", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.text)
-                        Text("YOLO AI 분석 중...", fontSize = 12.sp, color = colors.textMuted)
-                    }
-                }
+                    placeholder = {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clip(CircleShape)
+                                    .background(accent)
+                                    .graphicsLayer { alpha = pulseDot }
+                            )
+                            Text("웹캠 인식 중", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                            Text("YOLO AI 분석 중...", fontSize = 12.sp, color = colors.textMuted)
+                        }
+                    },
+                )
                 Spacer(Modifier.height(14.dp))
             }
 
             // ── 스캔 중 상태 표시 ────────────────────────────────────────────
-            if (scanPhase == "scanning") {
+            // scan.py 안내 문구가 있으면 결과가 나온 뒤에도 계속 표시 (연속 스캔)
+            if (scanPhase == "scanning" || scanHint != null) {
                 item {
                     Row(
                         modifier = Modifier
@@ -199,7 +210,7 @@ fun ScanView(
                                 .graphicsLayer { alpha = pulseDot },
                         )
                         Text(
-                            when {
+                            scanHint ?: when {
                                 isIn || isAllergen -> "YOLO v8 · 웹캠 입고 인식 중"
                                 isFresh            -> "OpenCV · 웹캠 부패 면적 측정 중"
                                 else               -> "YOLO v8 · 웹캠 출고 인식 중"
@@ -249,12 +260,13 @@ fun ScanView(
 
             // ── Firebase 수신 결과 행 ────────────────────────────────────────
             items(scanResults) { result ->
-                ScanResultRow(colors, result, accent, isFresh, allergens)
+                ScanResultRow(colors, result, accent, isFresh, allergens, showExpiry = mode == ScanMode.OUT)
                 if (isIn) {
                     Spacer(Modifier.height(3.dp))
                     ExpiryOcrRow(
                         colors = colors,
-                        extractedDate = ocrResults[result.id],
+                        // 폰으로 다시 촬영한 날짜가 있으면 우선, 없으면 scan.py가 정한 소비기한
+                        extractedDate = ocrResults[result.id] ?: result.suggestedExpiry,
                         isLoading = ocrLoadingId == result.id,
                         onPhotoTap = {
                             ocrTargetId = result.id
@@ -294,8 +306,12 @@ fun ScanView(
                                     size = 16.dp,
                                 )
                                 Text(
-                                    if (isFresh) "결과 확인 완료"
-                                    else "${scanResults.size}${if (isIn || isAllergen) "개 재고에 입고" else "개 재고에서 출고"}",
+                                    when {
+                                        isFresh    -> "결과 확인 완료"
+                                        isAllergen -> "${scanResults.size}개 알레르기 식재료로 등록"
+                                        isIn       -> "${scanResults.size}개 재고에 입고"
+                                        else       -> "${scanResults.size}개 재고에서 출고"
+                                    },
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isFresh) Color.White else accent,
@@ -309,7 +325,7 @@ fun ScanView(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(colors.surface)
                                 .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-                                .clickable { onConfirm(emptyList()) }
+                                .clickable(onClick = onRescan)
                                 .padding(vertical = 14.dp),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -411,8 +427,9 @@ private fun ScanResultRow(
     accent: Color,
     isFresh: Boolean,
     allergens: List<Allergen>,
+    showExpiry: Boolean = false,
 ) {
-    val isAllergic = result.isAllergen && allergens.any { it.name == result.name }
+    val isAllergic = allergens.any { allergenMatches(it.name, result.name) }
     val cat        = result.category
     val label      = if (result.qty.isNotBlank()) "${result.name} ${result.qty}" else result.name
 
@@ -436,24 +453,34 @@ private fun ScanResultRow(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(foodEmoji[result.name] ?: result.name.first().toString(), fontSize = 22.sp)
+            Text(foodEmoji[result.name] ?: result.name.firstOrNull()?.toString() ?: "?", fontSize = 22.sp)
         }
 
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.text)
-            if (isAllergic) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(colors.dangerSoft)
-                        .padding(horizontal = 5.dp, vertical = 2.dp),
-                ) {
-                    Text("알레르기", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = colors.danger)
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                if (isAllergic) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colors.dangerSoft)
+                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                    ) {
+                        Text("알레르기", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = colors.danger)
+                    }
                 }
+            }
+            // 출고: 어떤 소비기한의 재고에서 빠졌는지 표시
+            if (showExpiry && result.suggestedExpiry != null) {
+                Text(
+                    "소비기한 ${result.suggestedExpiry.format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))}",
+                    fontSize = 11.sp,
+                    color = colors.textMuted,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
         }
 
@@ -465,8 +492,16 @@ private fun ScanResultRow(
                     FreshnessStatus.ROTTEN    -> colors.danger
                     null                      -> accent
                 }
-                Text("${result.freshness}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = fColor)
-                Text("부패 ${result.rotPct}%", fontSize = 10.sp, color = colors.textFaint)
+                val fLabel = result.freshnessStatus?.let { " (${it.label})" } ?: ""
+                Text(
+                    if (result.freshness != null) "신선도 ${result.freshness}%$fLabel" else "신선도 미분석",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = fColor,
+                )
+                if (result.rotPct != null) {
+                    Text("부패 ${result.rotPct}%", fontSize = 10.sp, color = colors.textFaint)
+                }
             } else if (result.confidence != null) {
                 Text(
                     "${"%.1f".format(result.confidence * 100)}%",
