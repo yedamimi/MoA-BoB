@@ -15,9 +15,42 @@ object VisionService {
     private const val ENDPOINT =
         "https://vision.googleapis.com/v1/images:annotate"
 
+    // 유통기한 촬영: 사진에서 날짜 하나를 찾음
     suspend fun extractExpiryDate(
         imageBytes: ByteArray
-    ): LocalDate? = withContext(Dispatchers.IO) {
+    ): LocalDate? {
+
+        val fullText = detectText(imageBytes) ?: return null
+
+        // OCR 결과 정규화
+        val normalizedText = fullText
+            .replace("\n", " ")
+            .replace(" ", "")
+            .replace("O", "0")
+            .replace("o", "0")
+            .replace("I", "1")
+            .replace("l", "1")
+            .replace("Z", "2")
+            .replace(",", ".")
+            .replace(":", ".")
+
+        Log.d(
+            "OCR_RESULT_NORMALIZED",
+            normalizedText
+        )
+
+        return parseExpiryDate(normalizedText)
+    }
+
+    // 영수증 스캔: 줄바꿈을 유지한 전체 글자 (품목 분석은 ReceiptParser)
+    suspend fun extractText(
+        imageBytes: ByteArray
+    ): String? = detectText(imageBytes)
+
+    // Google Vision DOCUMENT_TEXT_DETECTION 호출. 실패하면 null
+    private suspend fun detectText(
+        imageBytes: ByteArray
+    ): String? = withContext(Dispatchers.IO) {
 
         val key = BuildConfig.EATDA_VISION_KEY
 
@@ -130,24 +163,7 @@ object VisionService {
                 fullText
             )
 
-            // OCR 결과 정규화
-            val normalizedText = fullText
-                .replace("\n", " ")
-                .replace(" ", "")
-                .replace("O", "0")
-                .replace("o", "0")
-                .replace("I", "1")
-                .replace("l", "1")
-                .replace("Z", "2")
-                .replace(",", ".")
-                .replace(":", ".")
-
-            Log.d(
-                "OCR_RESULT_NORMALIZED",
-                normalizedText
-            )
-
-            parseExpiryDate(normalizedText)
+            fullText
 
         } catch (e: Exception) {
 
