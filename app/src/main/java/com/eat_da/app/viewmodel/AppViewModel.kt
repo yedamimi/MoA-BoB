@@ -168,6 +168,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var freshnessChecksListener:   ValueEventListener? = null
     private var allergenHapticFired = false
 
+    // 유통기한 촬영으로 소비기한을 옮긴 스캔 결과 → 현재 재고 키 (다시 촬영할 때 사용)
+    private val ocrItemIds = mutableMapOf<String, String>()
+
     // 스캔 결과 음성 안내 묶음 (announceScanResults)
     private val pendingScanNames = mutableListOf<String>()
     private var scanTtsJob: kotlinx.coroutines.Job? = null
@@ -697,6 +700,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             freshnessStatus = freshnessStatusOf(freshness),
             isAllergen      = isAllergen,
             qty             = qty,
+            itemId          = snap.child("itemId").getValue(String::class.java),
         )
     }.getOrNull()
 
@@ -748,6 +752,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun beginScan(mode: ScanMode) {
         allergenHapticFired = false
+        ocrItemIds.clear()
         val firebaseMode = when (mode) {
             ScanMode.FRESH -> "fresh_scan"
             else           -> mode.name
@@ -767,8 +772,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun confirmScan(items: List<ScanResult>) {
         val mode = _state.value.activeScanMode
-        if (mode == ScanMode.ALLERGEN) addAllergens(items.map { it.name })
-        db.child("confirm_scan").setValue(mode?.name ?: "IDLE")
         db.child("fresh_target").removeValue()
         rootDb.child("current_mode").setValue("IDLE")
         db.child("scan_status").setValue("idle")
@@ -776,15 +779,82 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ScanMode.IN       -> "${items.size}개 항목이 재고에 추가됐습니다"
             ScanMode.OUT      -> "${items.size}개 항목이 출고됐습니다"
             ScanMode.FRESH    -> "신선도 분석 결과를 확인했습니다"
-            ScanMode.ALLERGEN -> "알레르기 식재료가 등록되었습니다"
             null              -> ""
         }
         _state.update { it.copy(activeScanMode = null, toast = msg, scanResults = emptyList(), scanPhase = "idle") }
     }
 
+    // 입고 화면 "유통기한 촬영"으로 읽은 날짜를 재고에 반영
+    //
+    // scan.py는 같은 이름·같은 추정 소비기한이면 한 재고에 수량을 합치므로,
+    // 스캔한 1개만 새 소비기한으로 옮김 (남은 수량은 원래 소비기한 유지)
+    // 새 소비기한과 같은 재고가 이미 있으면 그쪽 수량에 합침
+    fun applyOcrExpiry(result: ScanResult, newDate: LocalDate) {
+        val itemId = ocrItemIds[result.id] ?: result.itemId ?: run {
+            _state.update { it.copy(toast = "재고를 찾지 못해 소비기한을 저장하지 못했어요") }
+            return
+        }
+        val newExpiry    = newDate.toString()
+        val inventoryRef = rootDb.child("MoA-BoB").child("foodInventory")
+
+        inventoryRef.get().addOnSuccessListener { snapshot ->
+            val current = snapshot.child(itemId)
+            if (!current.exists()) {
+                _state.update { it.copy(toast = "재고를 찾지 못해 소비기한을 저장하지 못했어요") }
+                return@addOnSuccessListener
+            }
+            if (current.child("expiry").getValue(String::class.java) == newExpiry) return@addOnSuccessListener
+
+            val name = current.child("name").getValue(String::class.java) ?: return@addOnSuccessListener
+            val qty  = current.qtyNumber()
+            val existing = snapshot.children.firstOrNull {
+                it.key != itemId &&
+                        it.child("name").getValue(String::class.java) == name &&
+                        it.child("expiry").getValue(String::class.java) == newExpiry
+            }
+
+            val targetKey: String = when {
+                // 1개뿐 + 새 소비기한 재고 있음 → 합치고 원래 재고 삭제
+                qty <= 1 && existing != null -> {
+                    existing.ref.child("qty").setValue(existing.qtyNumber() + 1)
+                    current.ref.removeValue()
+                    existing.key!!
+                }
+                // 1개뿐 → 소비기한만 수정
+                qty <= 1 -> {
+                    current.ref.child("expiry").setValue(newExpiry)
+                    itemId
+                }
+                // 여러 개 → 1개만 떼어 새 소비기한 재고로
+                else -> {
+                    current.ref.child("qty").setValue(qty - 1)
+                    if (existing != null) {
+                        existing.ref.child("qty").setValue(existing.qtyNumber() + 1)
+                        existing.key!!
+                    } else {
+                        val key = inventoryRef.push().key ?: return@addOnSuccessListener
+                        @Suppress("UNCHECKED_CAST")
+                        val data = HashMap(current.value as? Map<String, Any?> ?: emptyMap())
+                        data["qty"]    = 1
+                        data["expiry"] = newExpiry
+                        inventoryRef.child(key).setValue(data)
+                        key
+                    }
+                }
+            }
+
+            ocrItemIds[result.id] = targetKey
+            val label = newDate.format(DateTimeFormatter.ofPattern("M월 d일"))
+            _state.update { it.copy(toast = "${name} 소비기한을 ${label}로 저장했어요 ✏️") }
+        }.addOnFailureListener {
+            _state.update { it.copy(toast = "소비기한 저장에 실패했어요") }
+        }
+    }
+
     // 결과 목록만 비우고 scan.py는 계속 스캔 (연속 스캔 모드)
     fun rescan() {
         allergenHapticFired = false
+        ocrItemIds.clear()
         db.child("scan_results").removeValue()
         _state.update { it.copy(scanResults = emptyList(), scanPhase = "scanning") }
     }
@@ -804,7 +874,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ScanMode.IN       -> "${items.size}개 항목이 재고에 추가됐습니다"
             ScanMode.OUT      -> "${items.size}개 항목이 출고됐습니다"
             ScanMode.FRESH    -> "신선도 분석 결과를 확인했습니다"
-            ScanMode.ALLERGEN -> "알레르기 식재료가 등록되었습니다"
             null              -> ""
         }
         _state.update { it.copy(phoneScanMode = null, phoneScanResults = emptyList(), toast = msg) }
