@@ -29,6 +29,17 @@
             android:label="싱싱마켓"
             android:exported="false" />
 
+        <!-- 영수증 스캔: 원본 해상도 촬영 사진 저장 위치 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>
