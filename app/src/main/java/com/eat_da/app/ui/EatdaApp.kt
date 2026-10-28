@@ -351,6 +351,7 @@ private fun AppScreenContent(
                     onClose = vm::closeScan,
                     onConfirm = vm::confirmScan,
                     onRescan = vm::rescan,
+                    onExpiryCaptured = vm::applyOcrExpiry,
                 )
             }
         }
