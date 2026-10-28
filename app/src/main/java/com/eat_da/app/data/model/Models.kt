@@ -54,17 +54,58 @@ data class FoodItem(
         }
     }
 
-    fun freshnessStatus(): FreshnessStatus? = freshness?.let {
-        when {
-            it < 60 -> FreshnessStatus.ROTTEN
-            it < 80 -> FreshnessStatus.ATTENTION
-            else -> FreshnessStatus.FRESH
-        }
-    }
+    // 신선도 미분석(null 또는 scan.py 기본값 -1)이면 null
+    fun freshnessStatus(): FreshnessStatus? = freshnessStatusOf(freshness)
 }
 
 enum class ExpiryStatus { EXPIRED, CRITICAL, WARNING, SOON, FRESH }
-enum class FreshnessStatus { ROTTEN, ATTENTION, FRESH }
+
+// 신선도 등급 (앱 전체 공통 기준)
+// 70% 이상 신선 / 30% 초과 ~ 70% 미만 보통 / 30% 이하 부패
+enum class FreshnessStatus(val label: String) {
+    ROTTEN("부패"),
+    ATTENTION("보통"),
+    FRESH("신선"),
+}
+
+fun freshnessStatusOf(score: Int?): FreshnessStatus? = when {
+    score == null || score < 0 -> null
+    score >= 70 -> FreshnessStatus.FRESH
+    score > 30 -> FreshnessStatus.ATTENTION
+    else -> FreshnessStatus.ROTTEN
+}
+
+// 식재료 이름별 최근 신선도 확인 기록 (Firebase MoA-BoB/freshnessChecks/{이름})
+// 같은 이름의 재고 묶음은 겉으로 구분할 수 없으므로 묶음이 아니라 이름 단위로 기록
+data class FreshnessCheck(
+    val score: Int,
+    val checkedAt: Long,   // epoch millis
+) {
+    val status: FreshnessStatus get() = freshnessStatusOf(score) ?: FreshnessStatus.ROTTEN
+
+    // "방금 전", "15분 전", "3시간 전", "2일 전"
+    fun agoText(now: Long = System.currentTimeMillis()): String {
+        val minutes = (now - checkedAt).coerceAtLeast(0) / 60_000
+        return when {
+            minutes < 1 -> "방금 전"
+            minutes < 60 -> "${minutes}분 전"
+            minutes < 60 * 24 -> "${minutes / 60}시간 전"
+            else -> "${minutes / (60 * 24)}일 전"
+        }
+    }
+
+    // "10월 28일 14:30"
+    fun checkedAtText(): String =
+        java.time.Instant.ofEpochMilli(checkedAt)
+            .atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("M월 d일 HH:mm"))
+
+    // 확인한 지 오래되면 다시 확인 권장
+    fun isStale(now: Long = System.currentTimeMillis()): Boolean =
+        now - checkedAt > FRESHNESS_STALE_DAYS * 24 * 60 * 60 * 1000L
+}
+
+const val FRESHNESS_STALE_DAYS = 3
 
 data class Recipe(
     val id: String,
