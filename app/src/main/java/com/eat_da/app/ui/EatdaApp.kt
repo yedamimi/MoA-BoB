@@ -169,7 +169,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
             }
 
             // 음성 어시스턴트 FAB — 스캔/음성 오버레이 열려있을 때는 숨김
-            if (!state.voiceOverlayOpen && state.activeScanMode == null) {
+            if (!state.voiceOverlayOpen && state.activeScanMode == null && !state.receiptScanOpen) {
                 VoiceFab(
                     colors   = colors,
                     modifier = Modifier
@@ -185,6 +185,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 colors = colors,
                 sheetState = scanSheetState,
                 onPick = vm::startScan,
+                onPickReceipt = vm::openReceiptScan,
                 onDismiss = vm::closeScanSheet,
             )
         }
@@ -371,6 +372,19 @@ private fun AppScreenContent(
                     onConfirm = vm::confirmPhoneScan,
                 )
             }
+        }
+
+        // 영수증 스캔 (폰 카메라 → OCR → 확인 후 입고)
+        AnimatedVisibility(
+            visible = state.receiptScanOpen,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        ) {
+            ReceiptScanView(
+                colors = colors,
+                onClose = vm::closeReceiptScan,
+                onConfirm = vm::confirmReceipt,
+            )
         }
 
         // TTS 재생 중 인디케이터
