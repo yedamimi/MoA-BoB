@@ -28,6 +28,7 @@ fun ScanBottomSheet(
     colors: EatdaColors,
     sheetState: SheetState,
     onPick: (ScanMode) -> Unit,
+    onPickReceipt: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -104,6 +105,32 @@ fun ScanBottomSheet(
                 )
             }
 
+            // ── 영수증 스캔: 폰 카메라로 영수증을 찍어 여러 식재료를 한 번에 입고 ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(colors.surfaceAlt)
+                    .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
+                    .clickable(onClick = onPickReceipt)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("🧾", fontSize = 26.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("영수증 스캔", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
+                    Text(
+                        "장 본 영수증으로 한 번에 입고",
+                        fontSize = 10.sp,
+                        color = colors.textMuted,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                EatdaIcon(EatdaIcons.ChevronRight, tint = colors.textMuted, size = 18.dp)
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -148,4 +175,3 @@ private fun ScanOption(
         Text(sub, fontSize = 10.sp, color = subColor, fontWeight = FontWeight.Medium)
     }
 }
- 
