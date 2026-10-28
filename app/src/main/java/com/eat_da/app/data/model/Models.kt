@@ -158,6 +158,7 @@ data class ScanResult(
     val freshnessStatus: FreshnessStatus? = null,
     val isAllergen: Boolean = false,
     val qty: String = "",
+    val itemId: String? = null,   // 입고 결과: scan.py가 저장한 foodInventory 키
 )
 
-enum class ScanMode { IN, OUT, FRESH, ALLERGEN }
+enum class ScanMode { IN, OUT, FRESH }
