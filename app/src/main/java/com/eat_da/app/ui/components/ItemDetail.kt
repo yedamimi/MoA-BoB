@@ -322,7 +322,10 @@ fun ItemDetailSheet(
 
             // ── 최근 확인한 신선도 카드 ───────────────────────────────────────
             // 같은 이름의 재고 묶음은 구분할 수 없으므로 식재료 이름 단위의 최근 기록을 표시
-            if (freshnessCheck != null && freshStatus != null) {
+            // 가공식품·육류 등 신선도 확인을 지원하지 않는 카테고리는 카드를 표시하지 않음
+            if (!cat.supportsFreshnessCheck) {
+                // 표시 안 함
+            } else if (freshnessCheck != null && freshStatus != null) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
