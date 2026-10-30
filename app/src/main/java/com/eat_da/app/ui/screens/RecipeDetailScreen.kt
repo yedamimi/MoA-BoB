@@ -373,11 +373,15 @@ private fun CookingStep(
         }
 
         Text(
-            text,
+            text = text
+                .replace(Regex("""^\s*\d+\s*[.)．]\s*"""), "")
+                .replace(Regex("""\s+"""), " ")
+                .trim(),
             modifier = Modifier.weight(1f),
             fontSize = 13.sp,
             color = colors.text,
-            lineHeight = 20.sp
+            lineHeight = 20.sp,
+            softWrap = true
         )
     }
 }

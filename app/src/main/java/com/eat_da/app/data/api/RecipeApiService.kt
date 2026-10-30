@@ -112,8 +112,10 @@ object RecipeApiService {
                     val key =
                         "MANUAL" + String.format("%02d", stepNumber)
 
-                    val step =
-                        item.optString(key).trim()
+                    val step = item.optString(key)
+                        .trim()
+                        .replace(Regex("""^\d+\s*[.)．]\s*"""), "")
+                        .trim()
 
                     if (step.isNotBlank()) {
                         cookingSteps.add(step)
