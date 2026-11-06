@@ -134,8 +134,14 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 EatdaTopBar(
                     colors = colors,
                     hasNotif = state.notifications.any { it.urgent },
-                    onNotif = { vm.navigate(Screen.NOTIFICATIONS) },
-                    onProfile = { vm.navigate(Screen.MYPAGE) },
+                    onNotif = {
+                        if (state.allergenScanOpen) vm.closeAllergenScan()
+                        vm.navigate(Screen.NOTIFICATIONS)
+                    },
+                    onProfile = {
+                        if (state.allergenScanOpen) vm.closeAllergenScan()
+                        vm.navigate(Screen.MYPAGE)
+                    },
                     profileActive = state.screen == Screen.MYPAGE,
                 )
                 AppScreenContent(
@@ -154,6 +160,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                     onNav = { screen ->
                         if (state.activeScanMode != null) vm.closeScan()
                         if (state.phoneScanMode != null) vm.closePhoneScan()
+                        if (state.allergenScanOpen) vm.closeAllergenScan()
 
                         if (screen == Screen.RECIPES) {
                             vm.openRecipesFromNavigation()
@@ -199,6 +206,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 onPickReceipt = vm::openReceiptScan,
                 onPickAllergen = vm::openAllergenScan,
                 onDismiss = vm::closeScanSheet,
+                a11yMode = settings.a11yMode,
             )
         }
 
@@ -446,6 +454,7 @@ private fun AppScreenContent(
                         )
                     }
                 },
+                a11yMode = state.settings.a11yMode,
             )
         }
 
