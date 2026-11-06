@@ -293,6 +293,7 @@ MoA-BoB/
 │               └── HouseholdManager.kt
 │
 └── scan.py                             # 외부 웹캠 AI 스캔 장치
+```
 
 ---
 
@@ -354,7 +355,7 @@ MoA-BoB/
 
 ### 1. 저장소 클론
 ```bash
-git clone https://github.com/yedamimi/moa-bob.git
+git clone https://github.com/yedamimi/MoA-BoB.git
 ```
 
 ### 2. Firebase 설정
