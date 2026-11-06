@@ -9,7 +9,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,7 +39,7 @@ fun ScanBottomSheet(
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 14.dp, bottom = 6.dp)
+                    .padding(top = 14.dp, bottom = 8.dp)
                     .width(36.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(999.dp))
@@ -56,10 +56,17 @@ fun ScanBottomSheet(
         ) {
             Text(
                 "어떤 스캔을 할까요?",
-                fontSize = 14.sp,
-                color = colors.textMuted,
-                fontWeight = FontWeight.Medium,
+                fontSize = 19.sp,
+                color = colors.text,
+                fontWeight = FontWeight.ExtraBold,
                 modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "원하는 작업을 선택해 주세요",
+                fontSize = 12.sp,
+                color = colors.textMuted,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                 textAlign = TextAlign.Center,
             )
 
@@ -70,7 +77,7 @@ fun ScanBottomSheet(
                 ScanOption(
                     modifier = Modifier.weight(1f),
                     bg = colors.accentSoft,
-                    border = colors.accent.copy(alpha = 0.2f),
+                    border = colors.accent.copy(alpha = 0.24f),
                     icon = EatdaIcons.Package,
                     iconColor = colors.accent,
                     title = "입고",
@@ -81,39 +88,38 @@ fun ScanBottomSheet(
                 )
                 ScanOption(
                     modifier = Modifier.weight(1f),
-                    bg = Color(0xFFFBE9D9),
-                    border = Color(0xFFE88937).copy(alpha = 0.33f),
+                    bg = Color(0xFFFFF0E4),
+                    border = Color(0xFFF1CEB1),
                     icon = EatdaIcons.Package,
-                    iconColor = Color(0xFFD17231),
+                    iconColor = Color(0xFFC16C2E),
                     title = "출고",
                     sub = "냉장고에서 꺼내기",
-                    titleColor = Color(0xFF9B5021),
-                    subColor = colors.textMuted,
+                    titleColor = Color(0xFFA85A25),
+                    subColor = Color(0xFF936F57),
                     onClick = { onPick(ScanMode.OUT) },
                 )
                 ScanOption(
                     modifier = Modifier.weight(1f),
-                    bg = Color(0xFFECEAF8),
-                    border = Color(0xFF5A4FB5).copy(alpha = 0.2f),
+                    bg = Color(0xFFEFEBFA),
+                    border = Color(0xFFD4CAEF),
                     icon = EatdaIcons.Leaf,
-                    iconColor = Color(0xFF5A4FB5),
+                    iconColor = Color(0xFF6654B6),
                     title = "신선도",
                     sub = "부패 확인",
-                    titleColor = Color(0xFF3B3287),
-                    subColor = colors.textMuted,
+                    titleColor = Color(0xFF57469B),
+                    subColor = Color(0xFF786D9D),
                     onClick = { onPick(ScanMode.FRESH) },
                 )
             }
 
-            // ── 영수증 스캔: 폰 카메라로 영수증을 찍어 여러 식재료를 한 번에 입고 ──
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(colors.surfaceAlt)
-                    .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, RoundedCornerShape(16.dp))
                     .clickable(onClick = onPickReceipt)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -122,10 +128,10 @@ fun ScanBottomSheet(
                     Text("영수증 스캔", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
                     Text(
                         "장 본 영수증으로 한 번에 입고",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = colors.textMuted,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = 3.dp),
                     )
                 }
                 EatdaIcon(EatdaIcons.ChevronRight, tint = colors.textMuted, size = 18.dp)
@@ -162,16 +168,16 @@ private fun ScanOption(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(bg)
-            .border(1.5.dp, border, RoundedCornerShape(16.dp))
+            .border(1.dp, border, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 18.dp),
+            .padding(horizontal = 4.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        EatdaIcon(icon, tint = iconColor, size = 30.dp)
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = titleColor)
-        Text(sub, fontSize = 10.sp, color = subColor, fontWeight = FontWeight.Medium)
+        EatdaIcon(icon, tint = iconColor, size = 28.dp)
+        Text(title, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = titleColor)
+        Text(sub, fontSize = 10.sp, color = subColor, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }

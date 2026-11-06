@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -68,12 +70,19 @@ fun VoiceOverlaySheet(
 
     // 음성 초기 화면으로 복귀 — 로컬 상태 리셋 (STT 재시작 안 함, 마이크 버튼 눌러야)
     fun goBack() {
-        heardText    = ""
-        hasResponded = false
-        onCommand(VoiceCommand.Back)
-        SttService.stop()
+        // 음성 대기 화면으로 돌아가기
         phase = VoicePhase.IDLE
+        heardText = ""
+        hasResponded = false
+
+        // 진행 중인 음성 안내 및 마이크 중지
+        SttService.stop()
+        TtsService.stop()
+
+        // 이전 응답 초기화
+        onCommand(VoiceCommand.Back)
     }
+
 
     // ── 마이크 권한 ──────────────────────────────────────────────────────────
     val permLauncher = rememberLauncherForActivityResult(
@@ -170,19 +179,21 @@ fun VoiceOverlaySheet(
     DisposableEffect(Unit) { onDispose { SttService.stop() } }
 
     // ── UI ───────────────────────────────────────────────────────────────────
+    val sheetBg = if (colors == ColorBlindEatdaColors) colors.bg else Color.White
+    val sheetBorder = if (colors == ColorBlindEatdaColors) colors.border else Color(0xFFE0E8E1)
     ModalBottomSheet(
         onDismissRequest = { SttService.stop(); onDismiss() },
         sheetState       = sheetState,
-        containerColor   = colors.bg,
+        containerColor   = sheetBg,
         contentColor     = colors.text,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 40.dp),
+                .padding(bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
 
             // 상단 — 이전 버튼(좌), 레이블(중앙), 끝내기 버튼(우)
@@ -193,18 +204,27 @@ fun VoiceOverlaySheet(
                         modifier = Modifier
                             .align(Alignment.CenterStart)
                             .clip(RoundedCornerShape(999.dp))
-                            .background(colors.surfaceAlt)
-                            .border(1.dp, colors.border, RoundedCornerShape(999.dp))
+                            .background(if (colors == ColorBlindEatdaColors) colors.surfaceAlt else Color(0xFFF4F7F4))
+                            .border(1.dp, sheetBorder, RoundedCornerShape(999.dp))
                             .clickable {
+
                                 if (currentIsAddMode) {
+                                    phase = VoicePhase.IDLE
+                                    heardText = ""
+                                    hasResponded = false
+
+                                    SttService.stop()
+                                    TtsService.stop()
+
                                     onCommand(VoiceCommand.ExitAddMode)
                                 } else {
                                     goBack()
                                 }
+
                             }
                             .padding(horizontal = 14.dp, vertical = 7.dp),
                     ) {
-                        Text("이전", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                        Text("이전", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.text)
                     }
                 }
 
@@ -238,7 +258,7 @@ fun VoiceOverlaySheet(
                             VoicePhase.SPEAKING,
                             VoicePhase.SPEAKING_AWAIT -> "응답 중..."
                         },
-                        fontSize   = 13.sp,
+                        fontSize   = 15.sp,
                         color      = colors.textMuted,
                         fontWeight = FontWeight.Medium,
                     )
@@ -249,12 +269,12 @@ fun VoiceOverlaySheet(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(colors.surfaceAlt)
-                        .border(1.dp, colors.border, RoundedCornerShape(999.dp))
+                        .background(if (colors == ColorBlindEatdaColors) colors.surfaceAlt else Color(0xFFF4F7F4))
+                        .border(1.dp, sheetBorder, RoundedCornerShape(999.dp))
                         .clickable { SttService.stop(); onDismiss() }
                         .padding(horizontal = 14.dp, vertical = 7.dp),
                 ) {
-                    Text("끝내기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                    Text("끝내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.text)
                 }
             }
 
@@ -454,17 +474,32 @@ private fun MicButton(colors: EatdaColors, phase: VoicePhase, onClick: () -> Uni
         }
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(76.dp)
                 .clip(CircleShape)
-                .background(if (isListening) colors.accent else colors.surface)
-                .border(2.dp, if (isListening) colors.accent else colors.border, CircleShape)
+                .background(if (isListening) colors.accent else if (colors == ColorBlindEatdaColors) colors.surface else Color(0xFFEAF3EC))
+                .border(2.dp, if (isListening) colors.accent else colors.accent.copy(alpha = 0.25f), CircleShape)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text     = "🎤",
-                fontSize = if (isListening) 26.sp else 24.sp,
-            )
+            Canvas(modifier = Modifier.size(30.dp)) {
+                val ink = if (isListening) Color.White else colors.accent
+                val w = size.width
+                val h = size.height
+                drawRoundRect(
+                    color = ink,
+                    topLeft = androidx.compose.ui.geometry.Offset(w * 0.39f, h * 0.10f),
+                    size = androidx.compose.ui.geometry.Size(w * 0.22f, h * 0.48f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.11f),
+                )
+                drawArc(
+                    color = ink, startAngle = 0f, sweepAngle = 180f, useCenter = false,
+                    topLeft = androidx.compose.ui.geometry.Offset(w * 0.25f, h * 0.23f),
+                    size = androidx.compose.ui.geometry.Size(w * 0.50f, h * 0.51f),
+                    style = Stroke(width = w * 0.075f),
+                )
+                drawLine(ink, androidx.compose.ui.geometry.Offset(w * 0.50f, h * 0.74f), androidx.compose.ui.geometry.Offset(w * 0.50f, h * 0.89f), strokeWidth = w * 0.075f)
+                drawLine(ink, androidx.compose.ui.geometry.Offset(w * 0.35f, h * 0.89f), androidx.compose.ui.geometry.Offset(w * 0.65f, h * 0.89f), strokeWidth = w * 0.075f)
+            }
         }
     }
 }
@@ -479,8 +514,8 @@ private fun VoiceHintList(colors: EatdaColors) {
     ) {
         Text(
             "이렇게 말해보세요",
-            fontSize   = 11.sp,
-            color      = colors.textFaint,
+            fontSize   = 13.sp,
+            color      = colors.textMuted,
             fontWeight = FontWeight.SemiBold,
             modifier   = Modifier.padding(bottom = 2.dp),
         )
@@ -507,8 +542,8 @@ private fun AddModeHintList(colors: EatdaColors) {
     ) {
         Text(
             "이렇게 말해보세요",
-            fontSize   = 11.sp,
-            color      = colors.textFaint,
+            fontSize   = 13.sp,
+            color      = colors.textMuted,
             fontWeight = FontWeight.SemiBold,
             modifier   = Modifier.padding(bottom = 2.dp),
         )
@@ -529,14 +564,14 @@ private fun HintRow(hint: String, colors: EatdaColors) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .clip(RoundedCornerShape(13.dp))
+            .background(if (colors == ColorBlindEatdaColors) colors.surface else Color.White)
+            .border(1.dp, if (colors == ColorBlindEatdaColors) colors.border else Color(0xFFE0E8E1), RoundedCornerShape(13.dp))
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text("🎤", fontSize = 13.sp)
-        Text(hint, fontSize = 12.sp, color = colors.textMuted)
+        Text(hint, fontSize = 14.sp, color = colors.textMuted)
     }
 }

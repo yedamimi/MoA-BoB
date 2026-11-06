@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.eatda.app.ui.theme.ColorBlindEatdaColors
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -39,6 +40,12 @@ fun MyPageScreen(
     onAddAllergen: (String) -> Unit,
     onGoHousehold: () -> Unit = {},
 ) {
+    val isColorBlindMode = colors == ColorBlindEatdaColors
+    val pageBg = if (isColorBlindMode) colors.bg else Color.White
+    val cardBg = if (isColorBlindMode) colors.surface else Color.White
+    val cardBorder = if (isColorBlindMode) colors.border else Color(0xFFE0E7E1)
+    val softGreen = if (isColorBlindMode) colors.accentSoft else Color(0xFFE7F1E8)
+    val softRed = if (isColorBlindMode) colors.dangerSoft else Color(0xFFF9E7E5)
     var allergenInput by remember { mutableStateOf("") }
 
     fun submitAllergen() {
@@ -48,14 +55,14 @@ fun MyPageScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(colors.bg),
-        contentPadding = PaddingValues(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(pageBg),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        item { Text("마이페이지", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = colors.text, modifier = Modifier.padding(horizontal = 4.dp, vertical = 14.dp)) }
+        item { Text("마이페이지", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = colors.text, modifier = Modifier.padding(horizontal = 4.dp, vertical = 14.dp)) }
 
         item {
             Row(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(16.dp)).padding(16.dp),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardBg).border(1.dp, cardBorder, RoundedCornerShape(18.dp)).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -64,14 +71,14 @@ fun MyPageScreen(
                     contentAlignment = Alignment.Center,
                 ) { Text("길", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.White) }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("길민재", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                    Text("길민재", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.text)
                     Text("구성원 1인", fontSize = 12.sp, color = colors.textMuted, modifier = Modifier.padding(top = 2.dp))
                 }
                 Box(modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(999.dp)).padding(horizontal = 12.dp, vertical = 6.dp).clickable { }) {
                     Text("편집", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.text)
                 }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
         }
 
         // ── 공동 냉장고 배너 ─────────────────────────────────────────────────
@@ -79,9 +86,9 @@ fun MyPageScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(colors.accentSoft)
-                    .border(1.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(softGreen)
+                    .border(1.dp, if (isColorBlindMode) colors.accent.copy(alpha = 0.25f) else Color(0xFFC9DDCB), RoundedCornerShape(18.dp))
                     .clickable(onClick = onGoHousehold)
                     .padding(14.dp),
                 verticalAlignment    = Alignment.CenterVertically,
@@ -95,19 +102,19 @@ fun MyPageScreen(
                     contentAlignment = Alignment.Center,
                 ) { Text("🏠", fontSize = 20.sp) }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("공동 냉장고", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = colors.accentDeep)
-                    Text("가족·동거인과 재고 함께 관리", fontSize = 11.sp, color = colors.accent.copy(alpha = 0.7f), modifier = Modifier.padding(top = 2.dp))
+                    Text("공동 냉장고", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = colors.accentDeep)
+                    Text("가족·동거인과 재고 함께 관리", fontSize = 12.sp, color = colors.accent.copy(alpha = 0.7f), modifier = Modifier.padding(top = 2.dp))
                 }
                 EatdaIcon(EatdaIcons.ChevronRight, tint = colors.accent, size = 18.dp)
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
         }
 
         item { SectionHeader(colors, sizes, "알레르기 식재료", "입출고 시 자동 경고") }
 
         // ── 알레르기 등록: 직접 입력 + 대표 항목 선택 ──────────────────────────
         item {
-            Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.dangerSoft).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(softRed).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     EatdaIcon(EatdaIcons.Warn, tint = colors.danger, size = 20.dp)
                     Text("현재 ${allergens.size}개 등록됨", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.danger)
@@ -184,11 +191,11 @@ fun MyPageScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
         }
 
         item {
-            Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(14.dp))) {
+            Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardBg).border(1.dp, cardBorder, RoundedCornerShape(18.dp))) {
                 if (allergens.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                         Text("등록된 알레르기 식재료가 없습니다", fontSize = 13.sp, color = colors.textMuted)

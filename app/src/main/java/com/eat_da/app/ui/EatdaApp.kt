@@ -118,7 +118,18 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
         }
 
         // FAB을 바텀 네비 위에 오버레이하기 위해 Box로 감쌈
-        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    if (settings.colorBlindMode || settings.a11yMode)
+                        colors.bg
+                    else
+                        Color.White
+                )
+                .statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 EatdaTopBar(
                     colors = colors,
@@ -223,7 +234,10 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 isAddMode          = state.isAddMode,
                 addedItems         = state.addedItems,
                 onCommand          = vm::handleVoiceCommand,
-                onDismiss          = vm::closeVoice,
+                onDismiss          = {
+                    TtsService.stop()
+                    vm.closeVoice()
+                },
             )
         }
 
@@ -248,6 +262,7 @@ private fun AppScreenContent(
     ttsPlaying: Boolean,
     vm: AppViewModel,
 ) {
+    var openImminentFilter by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
         AnimatedContent(
             targetState = state.screen,
@@ -261,8 +276,16 @@ private fun AppScreenContent(
                     inventory      = state.inventory,
                     recipes = state.recipes,
                     simplifiedHome = state.settings.simplifiedHome,
-                    onOpenItem     = vm::openItem,
+                    onOpenItem     = { item ->
+                        vm.navigate(Screen.INVENTORY)
+                        vm.openInventoryGroup(item.name)
+                    },
                     onGoNotif      = { vm.navigate(Screen.NOTIFICATIONS) },
+                    onGoImminent   = {
+                        openImminentFilter = true
+                        vm.openInventoryGroup(null)
+                        vm.navigate(Screen.INVENTORY)
+                    },
                     onGoRecipes    = { vm.navigate(Screen.RECIPES) },
                     onOpenRecipe   = { recipe -> vm.openRecipe(recipe) },
                     onGoInv        = { vm.navigate(Screen.INVENTORY) },
@@ -271,11 +294,17 @@ private fun AppScreenContent(
                     onDismissMarket = vm::dismissMarketArrivals,
                     onConfirmMarket = vm::confirmMarketArrivals,
                     onCheckDelivery = { vm.checkPendingDelivery() },
+                    onOpenInventoryGroup = { foodName ->
+                        vm.navigate(Screen.INVENTORY)
+                        vm.openInventoryGroup(foodName)
+                    },
                 )
                 Screen.INVENTORY -> InventoryScreen(
                     colors = colors,
                     sizes = sizes,
                     inventory = state.inventory,
+                    openImminentFilter = openImminentFilter,
+                    onImminentFilterConsumed = { openImminentFilter = false },
                     selectedFoodName = state.inventoryGroupName,
                     onSelectFood = vm::openInventoryGroup,
                     freshnessChecks = state.freshnessChecks,

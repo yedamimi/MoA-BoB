@@ -119,41 +119,46 @@ fun ScanView(
         label = "pulseDot",
     )
 
+    // 화면 표현에만 사용하는 색상. 스캔 상태·데이터 처리에는 영향 없음.
+    val pageBackground = if (colors == ColorBlindEatdaColors) colors.bg else Color.White
+    val cardBackground = if (colors.accent == Color(0xFF3F8E55)) Color.White else colors.surface
+    val cardBorder = if (colors.accent == Color(0xFF3F8E55)) Color(0xFFE1E8E2) else colors.border
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bg),
+            .background(pageBackground),
     ) {
         // ── 헤더 ─────────────────────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.bg)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .background(pageBackground)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(colors.surface)
-                    .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(cardBackground)
+                    .border(1.dp, cardBorder, RoundedCornerShape(14.dp))
                     .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
                 EatdaIcon(EatdaIcons.ChevronLeft, tint = colors.text, size = 20.dp)
             }
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(titleText, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
-                Text(subText, fontSize = 11.sp, color = colors.textMuted, modifier = Modifier.padding(top = 2.dp))
+                Text(titleText, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
+                Text(subText, fontSize = 12.sp, color = colors.textMuted, modifier = Modifier.padding(top = 2.dp))
             }
-            Spacer(Modifier.size(38.dp))
+            Spacer(Modifier.size(42.dp))
         }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             // ── 웹캠 뷰 영역 ─────────────────────────────────────────────────
@@ -164,9 +169,9 @@ fun ScanView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(4f / 3f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(16.dp)),
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(cardBackground)
+                        .border(1.dp, cardBorder, RoundedCornerShape(22.dp)),
                     placeholder = {
                         Column(
                             modifier = Modifier.align(Alignment.Center),
@@ -175,17 +180,18 @@ fun ScanView(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(14.dp)
+                                    .size(18.dp)
                                     .clip(CircleShape)
-                                    .background(accent)
+                                    .background(accentSoft)
+                                    .border(5.dp, accent, CircleShape)
                                     .graphicsLayer { alpha = pulseDot }
                             )
-                            Text("웹캠 인식 중", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.text)
-                            Text("YOLO AI 분석 중...", fontSize = 12.sp, color = colors.textMuted)
+                            Text("웹캠 인식 중", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                            Text("YOLO AI 분석 중...", fontSize = 13.sp, color = colors.textMuted)
                         }
                     },
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(18.dp))
             }
 
             // ── 스캔 중 상태 표시 ────────────────────────────────────────────
@@ -195,10 +201,10 @@ fun ScanView(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(14.dp))
                             .background(accentSoft)
-                            .border(1.dp, accent.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                            .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -215,7 +221,7 @@ fun ScanView(
                                 isFresh -> "OpenCV · 웹캠 부패 면적 측정 중"
                                 else    -> "YOLO v8 · 웹캠 출고 인식 중"
                             },
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = accentDeep,
                         )
@@ -228,8 +234,8 @@ fun ScanView(
             item {
                 Text(
                     "인식 결과",
-                    fontSize = 12.sp,
-                    color = colors.textMuted,
+                    fontSize = 16.sp,
+                    color = colors.text,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 )
@@ -242,16 +248,16 @@ fun ScanView(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(colors.surface)
-                            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-                            .padding(vertical = 24.dp),
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(cardBackground)
+                            .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 16.dp, vertical = 26.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             if (scanPhase == "scanning") "인식 대기 중..." else "웹캠 스캔을 시작하면 결과가 여기에 표시됩니다",
-                            fontSize = 12.sp,
-                            color = colors.textFaint,
+                            fontSize = 13.sp,
+                            color = colors.textMuted,
                         )
                     }
                     Spacer(Modifier.height(8.dp))
@@ -285,12 +291,12 @@ fun ScanView(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isFresh) accent else Color.Transparent)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(accent)
                                 .border(
-                                    if (isFresh) 0.dp else 1.5.dp,
+                                    0.dp,
                                     accent,
-                                    RoundedCornerShape(12.dp),
+                                    RoundedCornerShape(14.dp),
                                 )
                                 .clickable { onConfirm(scanResults) }
                                 .padding(vertical = 14.dp),
@@ -302,7 +308,7 @@ fun ScanView(
                             ) {
                                 EatdaIcon(
                                     if (isFresh) EatdaIcons.Leaf else EatdaIcons.Package,
-                                    tint = if (isFresh) Color.White else accent,
+                                    tint = Color.White,
                                     size = 16.dp,
                                 )
                                 Text(
@@ -313,7 +319,7 @@ fun ScanView(
                                     },
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isFresh) Color.White else accent,
+                                    color = Color.White,
                                 )
                             }
                         }
@@ -321,9 +327,9 @@ fun ScanView(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colors.surface)
-                                .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(cardBackground)
+                                .border(1.dp, cardBorder, RoundedCornerShape(14.dp))
                                 .clickable(onClick = onRescan)
                                 .padding(vertical = 14.dp),
                             contentAlignment = Alignment.Center,
@@ -360,10 +366,10 @@ private fun ExpiryOcrRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(colors.surfaceAlt)
-            .border(1.dp, colors.border, RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -435,17 +441,17 @@ private fun ScanResultRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-            .padding(12.dp),
+            .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .size(48.dp)
+                .clip(RoundedCornerShape(13.dp))
                 .background(
                     if (cat != null) Color(cat.hexColor).copy(alpha = 0.1f)
                     else accent.copy(alpha = 0.1f)
@@ -460,7 +466,7 @@ private fun ScanResultRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                Text(label, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.text)
                 if (isAllergic) {
                     Box(
                         modifier = Modifier
