@@ -370,10 +370,11 @@ Firebase SDK는 이 파일로 초기화되므로 DB URL을 코드에 직접 넣�
 | `EATDA_API_KEY` | 식품안전나라 Open API 인증키 |
 | `EATDA_VISION_KEY` | Google Cloud Vision API 키 (유통기한 · 영수증 OCR) |
 | `EATDA_TTS_KEY` | Google Cloud Text-to-Speech API 키 |
+> `app/build.gradle.kts`의 `android { buildFeatures { buildConfig = true } }`가 켜져 있어야 합니다.
 
-### 4. AndroidManifest 설정
-- **웹캠 실시간 화면**: 스트림 주소가 `http://` 이므로 `<application>`에 `android:usesCleartextTraffic="true"` 추가
-- **영수증 원본 해상도 촬영**: `<application>` 안에 FileProvider 등록 (`res/xml/file_paths.xml` 필요)
+### 4. AndroidManifest 설정 (저장소에 포함되어 있음)
+- **웹캠 실시간 화면**: 스트림 주소가 `http://`이라 `android:usesCleartextTraffic="true"`가 설정되어 있습니다.
+- **영수증 원본 해상도 촬영**: FileProvider(`${applicationId}.fileprovider`)와 `res/xml/file_paths.xml`이 등록되어 있습니다.
 
 ```xml
 <provider
@@ -391,8 +392,14 @@ Firebase SDK는 이 파일로 초기화되므로 DB URL을 코드에 직접 넣�
 Android Studio에서 프로젝트를 열고 Gradle Sync 후 실행합니다.
 
 ### 6. 스캔 장치 실행
-`scan.py`와 같은 폴더에 `best.pt`, `yolov8n.pt`, `freshness_detector.py`, Firebase 서비스 계정 키(JSON)를 두고 실행합니다.
-
+1. 패키지 설치
+```bash
+pip install ultralytics opencv-python easyocr pyzbar firebase-admin pillow numpy
+```
+2. `scan.py`와 같은 폴더에 `best.pt`, `yolov8n.pt`, `freshness_detector.py`, Firebase 서비스 계정 키(JSON)를 둡니다.
+   - 키 파일 이름과 DB 주소는 `scan.py`의 `FIREBASE_CREDENTIAL_PATH`, `FIREBASE_DATABASE_URL`에서 설정합니다.
+   - **서비스 계정 키는 저장소에 커밋하지 마세요.**
+3. 실행
 ```bash
 python scan.py
 ```
@@ -429,14 +436,14 @@ python scan.py
       <a href="https://github.com/yedamimi"><b>김예담</b></a>
     </td>
     <td><b>Team Leader · AI/ML · Android · System Integration</b></td>
-    <td>AI 모델 설계·학습·성능 개선 및 추론 파이프라인 구축, <b>AI 기반 식재료 인식·입출고 시스템 공동 개발</b>, 신선도 분석, 소비기한·영수증 OCR 및 바코드 인식, Android UX 설계, 실시간 웹캠 스트리밍·Android 연동, STT·TTS 음성 인터페이스, 배리어프리 접근성 기능, 알레르겐 자동 확장 로직, 공동 냉장고·싱싱마켓 연동, 전체 시스템 통합 및 총괄</td>
+    <td>AI 모델 설계·학습·성능 개선 및 추론 파이프라인 구축, <b>AI 기반 식재료 인식·입출고 시스템 공동 개발</b>, 신선도 분석, 소비기한·영수증 OCR 및 바코드 인식, Android UX 설계, 실시간 웹캠 스트리밍·Android 연동, STT·TTS 음성 인터페이스, 배리어프리 접근성 기능, 공동 냉장고·싱싱마켓 연동, 전체 시스템 통합 및 총괄</td>
   </tr>
   <tr>
     <td nowrap="nowrap">
       <a href="https://github.com/emaeginee"><b>이예진</b></a>
     </td>
     <td><b>Android · UI/UX</b></td>
-    <td>Android UI/UX 설계, 공통 UI 컴포넌트 개발, 레시피 API 연동·맞춤형 추천 기능, 소비기한 관리</td>
+    <td>Android UI/UX 설계, 공통 UI 컴포넌트 개발, 레시피 API 연동·맞춤형 레시피 추천 기능, 소비기한 관리</td>
   </tr>
   <tr>
     <td nowrap="nowrap">
