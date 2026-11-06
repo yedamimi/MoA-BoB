@@ -408,3 +408,6 @@ python scan.py
 - `RECORD_AUDIO` — 음성 명령
 - `VIBRATE` — 햅틱 피드백
 - 카메라는 시스템 카메라 앱을 호출하는 방식이라 별도 `CAMERA` 권한이 필요하지 않습니다.
+<br>
+<br>
+<img src="./app/src/main/assets/character.png" alt="모아밥 캐릭터" width="350"/>
