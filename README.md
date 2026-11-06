@@ -413,3 +413,37 @@ python scan.py
 <div align="center">
 <img src="./app/src/main/assets/character.png" alt="모아밥 캐릭터" width="350"/>
 </div>
+
+
+
+### 👥 Team Members
+
+<table>
+  <tr>
+    <th>이름</th>
+    <th>포지션</th>
+    <th>주요 개발 기능</th>
+  </tr>
+  <tr>
+    <td nowrap="nowrap">
+      <a href="https://github.com/yedamimi"><b>김예담</b></a>
+    </td>
+    <td><b>Team Leader · AI/ML · Android · System Integration</b></td>
+    <td>AI 모델 설계·학습·성능 개선 및 추론 파이프라인 구축, <b>AI 기반 식재료 인식·입출고 시스템 공동 개발</b>, 신선도 분석, 소비기한·영수증 OCR 및 바코드 인식, Android UX 설계, 실시간 웹캠 스트리밍·Android 연동, STT·TTS 음성 인터페이스, 배리어프리 접근성 기능, 알레르겐 자동 확장 로직, 공동 냉장고·싱싱마켓 연동, 전체 시스템 통합 및 총괄</td>
+  </tr>
+  <tr>
+    <td nowrap="nowrap">
+      <a href="https://github.com/emaeginee"><b>이예진</b></a>
+    </td>
+    <td><b>Android · UI/UX</b></td>
+    <td>Android UI/UX 설계, 공통 UI 컴포넌트 개발, 레시피 API 연동·맞춤형 추천 기능, 소비기한 관리</td>
+  </tr>
+  <tr>
+    <td nowrap="nowrap">
+      <a href="https://github.com/kilmj"><b>길민재</b></a>
+    </td>
+    <td><b>AI/ML · Database · System Integration</b></td>
+    <td>AI 인식 모델 개발 및 데이터셋 구축·전처리·관리, 모델 성능 평가·개선, <b>AI 기반 식재료 인식·입출고 시스템 공동 개발</b>, 식품 성분표 OCR 기반 알레르겐 검출, Firebase DB 설계·관리 및 실시간 데이터 동기화, 웹캠·Android·Firebase 시스템 통합 및 테스트</td>
+  </tr>
+</table>
+
