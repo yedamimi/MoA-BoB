@@ -1,20 +1,20 @@
+
 <div align="center">
 
-# 🍚 MoA-BoB | 모아밥
-
-<img src="./app/src/main/assets/logo.png" alt="모아밥 로고" width="250"/>
-
-### 냉장고 속 식재료를 더 똑똑하게, 모아밥
+<h2>냉장고 속 식재료를 더 똑똑하게, 모아밥(MoA-BoB) 🍚</h2>
 
 <br>
 
-## Hello, MoA-BoB! 👋
+<img src="./app/src/main/assets/logo.png" alt="모아밥 로고" width="350"/>
 
-### AI로 식재료를 관리하고, 누구나 편리하게 사용하는 배리어프리 냉장고
+<br><br>
 
-**AI 자동 인식 · 소비기한 관리 · 신선도 분석 · 레시피 추천**
+<h3>AI로 식재료를 관리하고, 누구나 편리하게 사용하는 배리어프리 냉장고</h3>
+
+<p><b>AI 자동 인식 · 소비기한 관리 · 신선도 분석 · 레시피 추천</b></p>
 
 </div>
+
 
 ---
 
@@ -220,46 +220,79 @@ flowchart TB
 
 ## 📁 프로젝트 구조
 
-```
-app/src/main/
-├── assets/
-│   └── shop.html                  # 싱싱마켓 웹 페이지
-├── res/xml/
-│   └── file_paths.xml             # 영수증 원본 해상도 촬영용 FileProvider 경로
-└── java/com/eat_da/app/
-    ├── MainActivity.kt
-    ├── data/
-    │   ├── api/RecipeApiService.kt    # 식품안전나라 레시피 API
-    │   ├── model/Models.kt            # FoodItem, Recipe, ScanResult, FreshnessCheck 등
-    │   │                              # 신선도 등급 기준(freshnessStatusOf)
-    │   ├── model/MockData.kt
-    │   ├── AllergenCatalog.kt         # 알레르기 대표 항목 · 관련 식재료 매칭
-    │   ├── ReceiptParser.kt           # 영수증 글자 → 식재료·수량·예상 소비기한
-    │   └── FoodCategoryMapper.kt      # 식품명 → 카테고리 자동 분류
-    ├── viewmodel/
-    │   └── AppViewModel.kt            # 앱 상태 · Firebase 연동 · 음성 명령 처리
-    ├── ui/
-    │   ├── EatdaApp.kt                # 루트 화면 · 내비게이션
-    │   ├── screens/                   # 홈, 재고, 알림, 레시피, 레시피 상세,
-    │   │                              # 마이페이지, 설정, 공동 냉장고
-    │   ├── components/                # 스캔 시트/뷰, 재고 상세, 음성 오버레이,
-    │   │                              # 알레르기 경고, 마켓 도착 시트,
-    │   │                              # 영수증 스캔(ReceiptScanView),
-    │   │                              # 웹캠 실시간 화면(MjpegView) 등
-    │   ├── shop/ShopWebViewActivity.kt
-    │   └── theme/                     # 색상 · 타이포 · 테마
-    └── util/
-        ├── CameraLabelerService.kt    # ML Kit 이미지 라벨링
-        ├── VisionService.kt           # Cloud Vision 유통기한 · 영수증 OCR
-        ├── TessaractOcrService.kt     # ML Kit 유통기한 OCR
-        ├── SttService.kt / TtsService.kt
-        ├── VoiceCommandParser.kt      # 음성 → 앱 명령 파싱
-        ├── Qty.kt                     # 수량 파싱 ("3개" → 3, "개")
-        ├── HapticManager.kt
-        └── HouseholdManager.kt        # 공동 냉장고 (초대 코드)
-
-scan.py                                # 스캔 장치 (PC 웹캠 + AI 모델)
-```
+```text
+MoA-BoB/
+├── app/
+│   └── src/main/
+│       ├── assets/
+│       │   ├── logo.png                # 모아밥 로고
+│       │   └── shop.html               # 싱싱마켓 웹 페이지
+│       │
+│       ├── res/xml/
+│       │   └── file_paths.xml          # 영수증 촬영용 FileProvider 경로
+│       │
+│       └── java/com/eat_da/app/
+│           ├── MainActivity.kt         # Android 앱 진입점
+│           │
+│           ├── data/
+│           │   ├── api/
+│           │   │   └── RecipeApiService.kt
+│           │   │                       # 식품안전나라 레시피 API
+│           │   ├── model/
+│           │   │   ├── Models.kt       # 데이터 모델 및 신선도 기준
+│           │   │   ├── MockData.kt     # 샘플 데이터
+│           │   │   ├── AllergenCatalog.kt
+│           │   │   └── ReceiptParser.kt
+│           │   └── FoodCategoryMapper.kt
+│           │                           # 식재료 카테고리 분류
+│           │
+│           ├── viewmodel/
+│           │   └── AppViewModel.kt     # 상태 관리 및 Firebase 연동
+│           │
+│           ├── ui/
+│           │   ├── EatdaApp.kt         # 루트 UI 및 내비게이션
+│           │   │
+│           │   ├── screens/
+│           │   │   ├── HomeScreen.kt
+│           │   │   ├── InventoryScreen.kt
+│           │   │   ├── RecipesScreen.kt
+│           │   │   ├── RecipeDetailScreen.kt
+│           │   │   ├── NotificationsScreen.kt
+│           │   │   ├── MypageScreen.kt
+│           │   │   ├── SettingsScreen.kt
+│           │   │   └── HouseholdScreen.kt
+│           │   │
+│           │   ├── components/
+│           │   │   ├── ScanSheet.kt
+│           │   │   ├── ScanView.kt
+│           │   │   ├── CameraScanView.kt
+│           │   │   ├── MjpegView.kt
+│           │   │   ├── ReceiptScanView.kt
+│           │   │   ├── ItemDetail.kt
+│           │   │   ├── VoiceFab.kt
+│           │   │   ├── VoiceOverlaySheet.kt
+│           │   │   ├── AllergyAlert.kt
+│           │   │   ├── MarketArrivalSheet.kt
+│           │   │   ├── SharedComponents.kt
+│           │   │   └── EatdaIcons.kt
+│           │   │
+│           │   ├── shop/
+│           │   │   └── ShopWebViewActivity.kt
+│           │   │
+│           │   └── theme/             # 색상·타이포그래피·테마
+│           │
+│           └── util/
+│               ├── CameraLabelerService.kt
+│               ├── VisionService.kt
+│               ├── TessaractOcrService.kt
+│               ├── SttService.kt
+│               ├── TtsService.kt
+│               ├── VoiceCommandParser.kt
+│               ├── Qty.kt
+│               ├── HapticManager.kt
+│               └── HouseholdManager.kt
+│
+└── scan.py                             # 외부 웹캠 AI 스캔 장치
 
 ---
 
