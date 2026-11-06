@@ -129,52 +129,61 @@
 
 ## 🏗️ 시스템 구성
 
-```
-┌───────────────────────────┐                ┌───────────────────────────┐
-│  스캔 장치 (PC + 웹캠)       │   MJPEG 스트림   │      Android 앱 (모아밥)      │
-│  scan.py                  │ ─────────────▶ │  Jetpack Compose + MVVM   │
-│  YOLOv8 품목 인식           │  (같은 와이파이)   │                           │
-│  EfficientNet-B0 신선도     │                │                           │
-│  pyzbar 바코드 + EasyOCR    │                │                           │
-└─────────┬─────────────────┘                └───────┬───────────────────┘
-          │  foodInventory / freshnessChecks          │  current_mode / fresh_target
-          │  scan_results / scan_hint / stream_url    │
-          ▼                                           ▼
-     ┌──────────────────────────────────────────────────────┐
-     │              Firebase Realtime Database               │
-     └──────────────────────────────────────────────────────┘
-                         ▲
-                         │ pendingDelivery
-                ┌────────┴────────┐
-                │  싱싱마켓 (Web)   │
-                └─────────────────┘
+```mermaid
+flowchart TB
+    subgraph DEVICE["📷 스캔 장치 (PC + 웹캠)"]
+        SCAN["Python · OpenCV<br/>YOLOv8 · EfficientNet-B0<br/>EasyOCR · pyzbar"]
+    end
 
-외부 API: 식품안전나라 레시피 API · Google Cloud Vision (유통기한·영수증 OCR) · Google Cloud TTS
+    subgraph APP["📱 Android 앱 (모아밥)"]
+        ANDROID["Kotlin · Jetpack Compose<br/>MVVM · STT/TTS<br/>재고 관리 · 스캔 결과"]
+    end
+
+    DB[("🔥 Firebase<br/>Realtime Database")]
+    MARKET["🛒 싱싱마켓 (Web)"]
+
+    SCAN -->|"MJPEG 스트림<br/>동일 Wi-Fi"| ANDROID
+
+    SCAN <-->|"재고 및 스캔 결과<br/>foodInventory · scan_results<br/>freshnessChecks · scan_hint"| DB
+
+    ANDROID <-->|"모드·대상 및 상태 동기화<br/>current_mode · fresh_target<br/>stream_url"| DB
+
+    MARKET -->|"pendingDelivery"| DB
+
+    style DEVICE fill:#EAF4FF,stroke:#77A8D8,color:#163D66
+    style APP fill:#EAF4FF,stroke:#77A8D8,color:#163D66
+    style DB fill:#FFF3DC,stroke:#D5A04B,color:#805006
+    style MARKET fill:#E8F7F0,stroke:#77BF98,color:#28694D
 ```
 
-1. `scan.py`를 실행하면 웹캠 스트림 서버가 켜지고, PC 주소를 `eatda/stream_url`에 기록합니다.
-2. 앱에서 스캔 모드를 선택하면 `current_mode`가 갱신됩니다. (식재료별 신선도 확인이면 `eatda/fresh_target`에 대상 식재료를 함께 기록)
-3. 스캔 장치가 식재료를 인식해 **재고(`foodInventory`)에 바로 반영**하고, 처리한 항목을 `scan_results`, 진행 안내를 `scan_hint`에 기록합니다.
-4. 앱은 리스너로 결과·안내를 실시간 수신해 목록과 상태 바에 표시하고, 스트림 주소로 웹캠 화면을 받아 보여 줍니다.
+### 🔗 외부 API 및 서비스
+
+| 서비스 | 활용 목적 |
+|---|---|
+| **식품안전나라 API** | 보유 식재료를 활용한 레시피 추천 |
+| **Google Cloud Vision API** | 소비기한 및 영수증 이미지 OCR |
+| **Google Cloud TTS** | 저시력 사용자를 위한 음성 안내 |
 
 ---
 
 ## 🛠️ 기술 스택
 
-| 구분 | 사용 기술 |
-|---|---|
-| Language | Kotlin 2.2 |
-| UI | Jetpack Compose, Material 3, Navigation Compose |
-| Architecture | MVVM, Kotlin Coroutines, StateFlow |
-| Backend | Firebase Realtime Database |
-| Camera / Vision | CameraX, ML Kit (Image Labeling, Text Recognition – Korean), Google Cloud Vision API |
-| On-device ML | TensorFlow Lite Task Vision |
-| Voice | Android SpeechRecognizer (STT), Google Cloud TTS |
-| Image | Coil 3 |
-| Web | AndroidX WebKit (`WebViewAssetLoader`) |
-| Open API | 식품안전나라 조리식품 레시피 DB (COOKRCP01) |
-| Scan Device | Python, OpenCV, Ultralytics YOLOv8, EasyOCR, pyzbar, Pillow (한글 라벨), `http.server` (MJPEG 스트림) |
-| AI Model | YOLOv8 품목 인식, EfficientNet-B0 멀티태스크 신선도 분류 |
+| 역할 | 기술 스택 | 선정 이유 |
+|:---:|---|---|
+| **Language** | ![Kotlin](https://img.shields.io/badge/Kotlin_2.2-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white) | Android 앱 개발을 위한 공식 지원 언어로, 간결하고 안정적인 코드 작성 |
+| **Frontend** | ![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white) ![Material 3](https://img.shields.io/badge/Material_3-6750A4?style=for-the-badge&logo=materialdesign&logoColor=white) | 선언형 UI와 Material Design 기반의 직관적이고 접근성 높은 화면 구현 |
+| **Architecture** | ![MVVM](https://img.shields.io/badge/MVVM-455A64?style=for-the-badge) ![Coroutines](https://img.shields.io/badge/Coroutines-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white) ![StateFlow](https://img.shields.io/badge/StateFlow-0095D5?style=for-the-badge) | UI와 비즈니스 로직을 분리하고 비동기 처리 및 상태 관리 효율화 |
+| **Navigation** | ![Navigation Compose](https://img.shields.io/badge/Navigation_Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white) | 식재료 등록·재고 조회·상세 화면 간 자연스러운 이동 구현 |
+| **Database** | ![Firebase](https://img.shields.io/badge/Firebase_Realtime_DB-DD2C00?style=for-the-badge&logo=firebase&logoColor=white) | 식재료 재고·신선도·소비기한 및 사용자 데이터를 실시간 동기화 |
+| **Camera / Vision** | ![CameraX](https://img.shields.io/badge/CameraX-3DDC84?style=for-the-badge&logo=android&logoColor=white) ![ML Kit](https://img.shields.io/badge/ML_Kit-4285F4?style=for-the-badge&logo=google&logoColor=white) ![Cloud Vision](https://img.shields.io/badge/Cloud_Vision_API-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white) | 카메라 기반 이미지 수집과 식재료 라벨·한글 텍스트 인식 |
+| **AI / ML** | ![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white) ![YOLOv8](https://img.shields.io/badge/YOLOv8-111F68?style=for-the-badge&logo=ultralytics&logoColor=white) ![EfficientNet](https://img.shields.io/badge/EfficientNet--B0-FF6F00?style=for-the-badge) | YOLOv8 기반 식재료 품목 인식과 EfficientNet-B0 기반 신선도·부패도 분류 |
+| **On-device ML** | ![TensorFlow Lite](https://img.shields.io/badge/TensorFlow_Lite-FF6F00?style=for-the-badge&logo=tensorflow&logoColor=white) | 모바일 환경에서 경량 AI 모델 추론 지원 |
+| **Scan Device** | ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white) ![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white) ![EasyOCR](https://img.shields.io/badge/EasyOCR-2B579A?style=for-the-badge) ![pyzbar](https://img.shields.io/badge/pyzbar-555555?style=for-the-badge) | 외부 웹캠을 활용한 식재료 인식·OCR·바코드 분석 및 MJPEG 영상 스트리밍 |
+| **Voice** | ![Android STT](https://img.shields.io/badge/Android_STT-3DDC84?style=for-the-badge&logo=android&logoColor=white) ![Google Cloud TTS](https://img.shields.io/badge/Google_Cloud_TTS-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white) | 저시력 사용자를 위한 음성 명령 인식과 음성 안내 제공 |
+| **Image / Web** | ![Coil 3](https://img.shields.io/badge/Coil_3-7F52FF?style=for-the-badge) ![Android WebKit](https://img.shields.io/badge/Android_WebKit-3DDC84?style=for-the-badge&logo=android&logoColor=white) | 이미지 비동기 로딩과 앱 내 웹 콘텐츠 표시 |
+| **Open API** | ![Food Safety Korea](https://img.shields.io/badge/식품안전나라_API-00897B?style=for-the-badge) | 식품안전나라 레시피 데이터(COOKRCP01)를 활용한 식재료 기반 요리 추천 |
+| **Collaboration** | ![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white) | 버전 관리, 코드 공유 및 팀 협업 |
+
 
 ---
 
