@@ -68,6 +68,11 @@ private val WarningText = Color(0xFF9B6B1F)
 private val RemnantBg = Color(0xFFFFF3CD)
 private val RemnantText = Color(0xFF9B6B00)
 
+// 홈 화면과 통일한 일반 모드 전용 UI 색상
+private val InventoryWhite = Color.White
+private val InventoryCardBorder = Color(0xFFE2E7E2)
+private val InventoryDeepGreen = Color(0xFF254D39)
+
 // 재고 목록의 소비기한 구분
 // 임박: D-0 ~ D-3 / 주의: D-4 ~ D-7 (경과는 ExpiryStatus.EXPIRED)
 private fun FoodItem.isImminent(): Boolean = daysLeft() in 0..3
@@ -123,9 +128,19 @@ fun InventoryScreen(
     // 식재료 이름별 최근 신선도 확인 기록, 신선도 확인 시작
     freshnessChecks: Map<String, FreshnessCheck>,
     onCheckFreshness: (String) -> Unit,
+    openImminentFilter: Boolean = false,
+    onImminentFilterConsumed: () -> Unit = {},
 ) {
     var filter by remember { mutableStateOf(InvFilter.ALL) }
     var query by remember { mutableStateOf("") }
+
+    LaunchedEffect(openImminentFilter) {
+        if (openImminentFilter) {
+            filter = InvFilter.CRITICAL
+            query = ""
+            onImminentFilterConsumed()
+        }
+    }
 
     BackHandler(enabled = selectedFoodName != null) {
         onSelectFood(null)
@@ -249,7 +264,7 @@ fun InventoryScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bg),
+            .background(if (colors.isColorBlind || colors.isA11y) colors.bg else InventoryWhite),
     ) {
 
         Column(
@@ -260,20 +275,20 @@ fun InventoryScreen(
                 "재고 목록",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = colors.text,
-                modifier = Modifier.padding(vertical = 10.dp)
+                color = if (colors.isColorBlind || colors.isA11y) colors.text else InventoryDeepGreen,
+                modifier = Modifier.padding(vertical = 8.dp)
             )
 
             // 검색창
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
+                    .height(42.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(colors.surface)
+                    .background(if (colors.isColorBlind || colors.isA11y) colors.surface else InventoryWhite)
                     .border(
                         1.dp,
-                        colors.border,
+                        if (colors.isColorBlind || colors.isA11y) colors.border else InventoryCardBorder,
                         RoundedCornerShape(12.dp)
                     )
                     .padding(horizontal = 12.dp),
@@ -324,9 +339,9 @@ fun InventoryScreen(
         LazyRow(
             contentPadding = PaddingValues(
                 horizontal = 16.dp,
-                vertical = 12.dp
+                vertical = 10.dp
             ),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
 
             items(InvFilter.entries) { f ->
@@ -390,7 +405,7 @@ fun InventoryScreen(
                         colors.warningSoft
 
                     else ->
-                        colors.surface
+                        if (colors.isColorBlind || colors.isA11y) colors.surface else InventoryWhite
                 }
 
                 val chipBorder = when {
@@ -407,7 +422,7 @@ fun InventoryScreen(
                         colors.warning.copy(alpha = 0.4f)
 
                     else ->
-                        colors.border
+                        if (colors.isColorBlind || colors.isA11y) colors.border else InventoryCardBorder
                 }
 
                 val chipText = when {
@@ -540,7 +555,7 @@ private fun InventoryGroupView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bg)
+            .background(if (colors.isColorBlind || colors.isA11y) colors.bg else InventoryWhite)
     ) {
 
         // ─────────────────────────────
@@ -580,7 +595,7 @@ private fun InventoryGroupView(
             )
 
             Text(
-                text = foodName,
+                text = "재고 상세",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.text
@@ -606,10 +621,13 @@ private fun InventoryGroupView(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(
-                            top = 6.dp,
-                            bottom = 14.dp
-                        ),
+                        .padding(top = 6.dp, bottom = 4.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            if (colors.isColorBlind || colors.isA11y) colors.accentSoft
+                            else Color(0xFFDFECE0)
+                        )
+                        .padding(horizontal = 14.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
@@ -773,61 +791,6 @@ private fun InventoryGroupView(
             }
 
             // ─────────────────────────────
-// 맞춤 보관 가이드
-// ─────────────────────────────
-
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.accentSoft)
-                        .clickable {
-                            showStorageGuide = true
-                        }
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            EatdaIcon(
-                                EatdaIcons.Sparkle,
-                                tint = colors.accentDeep,
-                                size = 16.dp
-                            )
-
-                            Text(
-                                text = "맞춤 보관 가이드",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.accentDeep
-                            )
-                        }
-
-                        Text(
-                            text = "자세히 보기  ›",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.accentDeep
-                        )
-                    }
-
-                    Text(
-                        text = storageGuideSummary(foodName),
-                        fontSize = 13.sp,
-                        color = colors.text
-                    )
-                }
-            }
-
-            // ─────────────────────────────
 // 레시피 추천
 // ─────────────────────────────
 
@@ -886,6 +849,61 @@ private fun InventoryGroupView(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.accentDeep
+                    )
+                }
+            }
+
+            // ─────────────────────────────
+// 맞춤 보관 가이드
+// ─────────────────────────────
+
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.accentSoft)
+                        .clickable {
+                            showStorageGuide = true
+                        }
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            EatdaIcon(
+                                EatdaIcons.Sparkle,
+                                tint = colors.accentDeep,
+                                size = 16.dp
+                            )
+
+                            Text(
+                                text = "맞춤 보관 가이드",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.accentDeep
+                            )
+                        }
+
+                        Text(
+                            text = "자세히 보기  ›",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.accentDeep
+                        )
+                    }
+
+                    Text(
+                        text = storageGuideSummary(foodName),
+                        fontSize = 13.sp,
+                        color = colors.text
                     )
                 }
             }
@@ -957,25 +975,22 @@ private fun InventoryGroupView(
             ) {
                 Surface(
                     modifier = Modifier
-                        .width(320.dp)
-                        .heightIn(
-                            min = 300.dp,
-                            max = 420.dp
-                        )
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .widthIn(max = 360.dp)
                         .border(
                             1.dp,
                             colors.border,
-                            RoundedCornerShape(20.dp)
+                            RoundedCornerShape(22.dp)
                         ),
-                    shape = RoundedCornerShape(20.dp),
-                    color = colors.bg,
+                    shape = RoundedCornerShape(22.dp),
+                    color = if (colors.isColorBlind || colors.isA11y) colors.bg else Color.White,
                     shadowElevation = 12.dp,
-                    tonalElevation = 6.dp,
+                    tonalElevation = 0.dp,
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp)
+                        modifier = Modifier.padding(22.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -983,8 +998,8 @@ private fun InventoryGroupView(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(colors.accentSoft),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -1000,31 +1015,25 @@ private fun InventoryGroupView(
                             ) {
                                 Text(
                                     "맞춤 보관 가이드",
-                                    fontSize = 17.sp,
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = colors.text
                                 )
 
                                 Text(
                                     "${foodEmoji[foodName] ?: ""} $foodName",
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     color = colors.textMuted,
-                                    modifier = Modifier.padding(top = 2.dp)
+                                    modifier = Modifier.padding(top = 3.dp)
                                 )
                             }
                         }
 
-                        Spacer(Modifier.height(16.dp))
-
-                        HorizontalDivider(
-                            color = colors.border
-                        )
-
-                        Spacer(Modifier.height(16.dp))
+                        HorizontalDivider(color = colors.border)
 
                         Column(
                             modifier = Modifier
-                                .weight(1f)
+                                .heightIn(max = 260.dp)
                                 .verticalScroll(rememberScrollState())
                         ) {
                             Text(
@@ -1035,8 +1044,6 @@ private fun InventoryGroupView(
                             )
                         }
 
-                        Spacer(Modifier.height(16.dp))
-
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1045,7 +1052,7 @@ private fun InventoryGroupView(
                                 .clickable {
                                     showStorageGuide = false
                                 }
-                                .padding(vertical = 12.dp),
+                                .padding(vertical = 13.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -1083,11 +1090,11 @@ private fun InventoryGroupItemRow(
                 RoundedCornerShape(14.dp)
             )
             .background(
-                colors.surface
+                if (colors.isColorBlind || colors.isA11y) colors.surface else InventoryWhite
             )
             .border(
                 1.dp,
-                colors.border,
+                if (colors.isColorBlind || colors.isA11y) colors.border else InventoryCardBorder,
                 RoundedCornerShape(14.dp)
             )
             .clickable(
@@ -1200,19 +1207,21 @@ fun InventoryRow(
                 RoundedCornerShape(14.dp)
             )
             .background(
-                colors.surface
+                if (colors.isColorBlind || colors.isA11y) colors.surface else InventoryWhite
             )
             .border(
                 1.dp,
-                colors.border,
+                if (colors.isColorBlind || colors.isA11y) colors.border else InventoryCardBorder,
                 RoundedCornerShape(14.dp)
             )
             .clickable(
                 onClick = onClick
             )
             .padding(
-                12.dp,
-                12.dp
+                start = 10.dp,
+                top = 10.dp,
+                end = 14.dp,
+                bottom = 10.dp
             ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

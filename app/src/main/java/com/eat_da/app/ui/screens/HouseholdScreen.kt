@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eatda.app.ui.components.EatdaIcon
 import com.eatda.app.ui.components.EatdaIcons
-import com.eatda.app.ui.theme.EatdaColors
+import com.eatda.app.ui.theme.*
 import com.eatda.app.util.Household
 import com.eatda.app.util.HouseholdManager
 import com.eatda.app.util.HouseholdMember
@@ -43,16 +43,18 @@ fun HouseholdScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val isColorBlind = colors == ColorBlindEatdaColors
+    val pageBg = if (isColorBlind) colors.bg else Color.White
     val savedName = remember { HouseholdManager.getMyName(context) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(colors.bg),
+        modifier = Modifier.fillMaxSize().background(pageBg),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
     ) {
         // ── 헤더 ─────────────────────────────────────────────────────────────
         item {
             Row(
-                modifier = Modifier.padding(vertical = 14.dp),
+                modifier = Modifier.padding(top = 18.dp, bottom = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -60,14 +62,14 @@ fun HouseholdScreen(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(colors.surfaceAlt)
+                        .background(if (isColorBlind) colors.surfaceAlt else Color(0xFFF3F6F2))
                         .clickable(onClick = onBack),
                     contentAlignment = Alignment.Center,
                 ) {
                     EatdaIcon(EatdaIcons.ChevronLeft, tint = colors.text, size = 20.dp)
                 }
                 Column {
-                    Text("공동 냉장고", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
+                    Text("공동 냉장고", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
                     Text(
                         if (household != null) "구성원 ${members.size}명과 함께 관리 중"
                         else "가족·동거인과 재고를 함께 관리해요",
@@ -83,6 +85,7 @@ fun HouseholdScreen(
             item {
                 NoHouseholdContent(
                     colors    = colors,
+                    isColorBlind = isColorBlind,
                     savedName = savedName,
                     onCreate  = onCreateHousehold,
                     onJoin    = onJoinHousehold,
@@ -124,6 +127,7 @@ fun HouseholdScreen(
 @Composable
 private fun NoHouseholdContent(
     colors: EatdaColors,
+    isColorBlind: Boolean,
     savedName: String,
     onCreate: (name: String, myName: String) -> Unit,
     onJoin: (code: String, myName: String) -> Unit,
@@ -136,9 +140,9 @@ private fun NoHouseholdContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.accentSoft)
-            .border(1.dp, colors.accent.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (isColorBlind) colors.accentSoft else Color(0xFFE7F0E7))
+            .border(1.dp, if (isColorBlind) colors.accent.copy(alpha = 0.2f) else Color(0xFFCADFCD), RoundedCornerShape(18.dp))
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -154,16 +158,16 @@ private fun NoHouseholdContent(
         )
     }
 
-    Spacer(Modifier.height(20.dp))
+    Spacer(Modifier.height(24.dp))
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("내 이름", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.textMuted, modifier = Modifier.padding(start = 4.dp))
+        Text("내 이름", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.textMuted, modifier = Modifier.padding(start = 4.dp))
         OutlinedTextField(
             value         = myName,
             onValueChange = { myName = it },
             placeholder   = { Text("이름 또는 닉네임") },
             modifier      = Modifier.fillMaxWidth(),
-            shape         = RoundedCornerShape(12.dp),
+            shape         = RoundedCornerShape(14.dp),
             singleLine    = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             colors = OutlinedTextFieldDefaults.colors(
@@ -171,6 +175,8 @@ private fun NoHouseholdContent(
                 unfocusedBorderColor = colors.border,
                 focusedTextColor     = colors.text,
                 unfocusedTextColor   = colors.text,
+                focusedContainerColor = if (isColorBlind) colors.surface else Color.White,
+                unfocusedContainerColor = if (isColorBlind) colors.surface else Color.White,
             ),
         )
     }
@@ -180,8 +186,9 @@ private fun NoHouseholdContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.surfaceAlt)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isColorBlind) colors.surfaceAlt else Color(0xFFF3F6F2))
+            .border(1.dp, if (isColorBlind) colors.border else Color(0xFFDDE6DD), RoundedCornerShape(14.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -189,17 +196,17 @@ private fun NoHouseholdContent(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (mode == key) colors.accent else Color.Transparent)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (mode == key) colors.accent else if (isColorBlind) Color.Transparent else Color.White)
                     .clickable { mode = key; input = "" }
-                    .padding(vertical = 10.dp),
+                    .padding(vertical = 13.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     label,
                     fontSize   = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color      = if (mode == key) Color.White else colors.textMuted,
+                    color      = if (mode == key) Color.White else colors.text,
                 )
             }
         }
@@ -219,7 +226,7 @@ private fun NoHouseholdContent(
                 onValueChange = { input = it.uppercase().take(if (mode == "join") 6 else 30) },
                 placeholder   = { Text(placeholder) },
                 modifier      = Modifier.fillMaxWidth(),
-                shape         = RoundedCornerShape(12.dp),
+                shape         = RoundedCornerShape(14.dp),
                 singleLine    = true,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Characters,
@@ -230,6 +237,8 @@ private fun NoHouseholdContent(
                     unfocusedBorderColor = colors.border,
                     focusedTextColor     = colors.text,
                     unfocusedTextColor   = colors.text,
+                    focusedContainerColor = if (isColorBlind) colors.surface else Color.White,
+                    unfocusedContainerColor = if (isColorBlind) colors.surface else Color.White,
                 ),
             )
 
@@ -245,7 +254,7 @@ private fun NoHouseholdContent(
                 },
                 enabled  = canSubmit && !loading,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape    = RoundedCornerShape(12.dp),
+                shape    = RoundedCornerShape(14.dp),
                 colors   = ButtonDefaults.buttonColors(containerColor = colors.accent),
             ) {
                 if (loading) {

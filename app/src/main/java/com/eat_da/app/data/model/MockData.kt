@@ -400,9 +400,17 @@ fun recommendRecipes(
     lackingNutrient: String? = "단백질",
 ): List<Recipe> {
 
+    // 실제 재고에서 경과되지 않은 품목만 사용 가능한 재료로 인정
+    // 기존 availableIngredients 인자와 함수 호출 구조는 유지
+    val usableInventoryKeys = inventory
+        .filter { it.expiryStatus() != ExpiryStatus.EXPIRED }
+        .map { ingredientKey(it.name) }
+        .filter { it.isNotBlank() }
+        .toSet()
+
     val availableKeys = availableIngredients
         .map(::ingredientKey)
-        .filter { it.isNotBlank() }
+        .filter { it.isNotBlank() && it in usableInventoryKeys }
         .toSet()
 
     // 소비기한이 임박한 재료를 임박한 순서로 정렬

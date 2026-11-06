@@ -36,11 +36,13 @@ fun SettingsScreen(
     onGoMyPage: () -> Unit = {},
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(colors.bg),
+        modifier = Modifier.fillMaxSize().background(
+            if (!settings.a11yMode && !settings.colorBlindMode) Color.White else colors.bg
+        ),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
     ) {
         item {
-            Text("설정", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = colors.text, modifier = Modifier.padding(horizontal = 4.dp, vertical = 14.dp))
+            Text("설정", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = colors.text, modifier = Modifier.padding(horizontal = 4.dp, vertical = 20.dp))
         }
 
         item {
@@ -92,7 +94,7 @@ fun SettingsScreen(
                 )
 
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(22.dp))
         }
 
         item {
@@ -154,7 +156,7 @@ fun SettingsScreen(
                     },
                 )
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(22.dp))
         }
 
         item {
@@ -167,7 +169,7 @@ fun SettingsScreen(
                     },
                 )
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(22.dp))
         }
 
         item {
@@ -193,18 +195,18 @@ fun SettingsScreen(
 private fun SettingsGroup(colors: EatdaColors, title: String, content: @Composable ColumnScope.() -> Unit) {
     Text(
         title.uppercase(),
-        fontSize = 11.sp,
+        fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
-        letterSpacing = 0.06.sp,
+        letterSpacing = 0.02.sp,
         color = colors.textMuted,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp),
     )
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(14.dp)),
+            .border(1.dp, colors.border, RoundedCornerShape(18.dp)),
         content = content,
     )
 }
@@ -225,7 +227,7 @@ private fun SettingsRow(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(14.dp),
+            .padding(horizontal = 14.dp, vertical = 17.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

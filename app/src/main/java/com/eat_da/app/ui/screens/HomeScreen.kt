@@ -50,6 +50,7 @@ fun HomeScreen(
     simplifiedHome: Boolean = false,
     onOpenItem: (FoodItem) -> Unit,
     onGoNotif: () -> Unit,
+    onGoImminent: () -> Unit,
     onGoRecipes: () -> Unit,
     onOpenRecipe: (Recipe) -> Unit,
     onGoInv: () -> Unit,
@@ -58,15 +59,19 @@ fun HomeScreen(
     onDismissMarket: () -> Unit = {},
     onConfirmMarket: () -> Unit = {},
     onCheckDelivery: () -> Unit = {},
+    onOpenInventoryGroup: (String) -> Unit,
 ) {
     val criticalItems = inventory.filter { it.expiryStatus() in listOf(ExpiryStatus.CRITICAL, ExpiryStatus.EXPIRED) }
 
     if (simplifiedHome) {
-        SimplifiedHomeScreen(colors, sizes, criticalItems, onOpenItem)
+        SimplifiedHomeScreen(
+            colors, sizes, criticalItems,
+            onOpenInventoryGroup
+        )
     } else {
         FullHomeScreen(
             colors, sizes, inventory, recipes, criticalItems, onOpenItem,
-            onGoNotif, onGoRecipes, onOpenRecipe, onGoInv, onOpenVoice,
+            onGoNotif, onGoImminent, onGoRecipes, onOpenRecipe, onGoInv, onOpenVoice,
             marketArrivals, onDismissMarket, onConfirmMarket, onCheckDelivery,
         )
     }
@@ -79,11 +84,11 @@ private fun SimplifiedHomeScreen(
     colors: EatdaColors,
     sizes: EatdaSizes,
     criticalItems: List<FoodItem>,
-    onOpenItem: (FoodItem) -> Unit,
+    onOpenInventoryGroup: (String) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(colors.bg),
-        contentPadding = PaddingValues(16.dp),
+        modifier = Modifier.fillMaxSize().background(if (colors.isColorBlind) colors.bg else Color.White),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
@@ -91,15 +96,23 @@ private fun SimplifiedHomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (criticalItems.isEmpty()) colors.accentSoft else colors.dangerSoft)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(if (colors.isColorBlind) {
+                        if (criticalItems.isEmpty()) colors.accentSoft else colors.dangerSoft
+                    } else {
+                        if (criticalItems.isEmpty()) Color(0xFFDCEBDD) else Color(0xFFF9F0EE)
+                    })
                     .border(
-                        2.dp,
-                        if (criticalItems.isEmpty()) colors.accent.copy(alpha = 0.3f)
-                        else colors.danger.copy(alpha = 0.4f),
-                        RoundedCornerShape(16.dp),
+                        1.dp,
+                        if (colors.isColorBlind) {
+                            if (criticalItems.isEmpty()) colors.accent.copy(alpha = 0.3f)
+                            else colors.danger.copy(alpha = 0.4f)
+                        } else {
+                            if (criticalItems.isEmpty()) Color(0xFFD1E3D4) else Color(0xFFEBCFCA)
+                        },
+                        RoundedCornerShape(18.dp),
                     )
-                    .padding(24.dp)
+                    .padding(horizontal = 18.dp, vertical = 24.dp)
                     .semantics {
                         contentDescription = if (criticalItems.isEmpty())
                             "오늘 확인할 식재료 없음"
@@ -122,8 +135,8 @@ private fun SimplifiedHomeScreen(
                     if (criticalItems.isNotEmpty()) {
                         Text(
                             "아래 항목을 확인하고 사용하거나 폐기하세요",
-                            fontSize = 13.sp,
-                            color    = colors.danger.copy(alpha = 0.8f),
+                            fontSize = 15.sp,
+                            color    = if (colors.isColorBlind) colors.danger.copy(alpha = 0.8f) else Color(0xFF99564D),
                         )
                     }
                 }
@@ -135,9 +148,13 @@ private fun SimplifiedHomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(colors.surface)
-                    .border(2.dp, colors.danger.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                    .clickable { onOpenItem(item) }
+                    .background(if (colors.isColorBlind) colors.surface else Color.White)
+                    .border(
+                        1.dp,
+                        if (colors.isColorBlind) colors.danger.copy(alpha = 0.5f) else Color(0xFFE2E7E2),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .clickable { onOpenInventoryGroup(item.name) }
                     .padding(20.dp)
                     .semantics {
                         contentDescription = "${item.name}, ${item.qty}, ${item.formatExpiry()}, 긴급 확인 필요"
@@ -145,10 +162,27 @@ private fun SimplifiedHomeScreen(
                 verticalAlignment    = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(foodEmoji[item.name] ?: item.category.label.first().toString(), fontSize = 36.sp)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(item.name,          fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
-                    Text(item.formatExpiry(), fontSize = 15.sp, fontWeight = FontWeight.Bold,      color = colors.danger)
+                Box(
+                    modifier = Modifier.size(66.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (colors.isColorBlind) colors.surfaceAlt else Color(0xFFF1F4F0)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(foodEmoji[item.name] ?: item.category.label.first().toString(), fontSize = 36.sp)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(item.name, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
+                        color = if (colors.isColorBlind) colors.text else Color(0xFF242C27))
+                    Text(
+                        item.formatExpiry(),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.danger,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (colors.isColorBlind) colors.dangerSoft else Color(0xFFF9E9E7))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
                 }
             }
         }
@@ -168,6 +202,7 @@ private fun FullHomeScreen(
     criticalItems: List<FoodItem>,
     onOpenItem: (FoodItem) -> Unit,
     onGoNotif: () -> Unit,
+    onGoImminent: () -> Unit,
     onGoRecipes: () -> Unit,
     onOpenRecipe: (Recipe) -> Unit,
     onGoInv: () -> Unit,
@@ -177,15 +212,21 @@ private fun FullHomeScreen(
     onConfirmMarket: () -> Unit = {},
     onCheckDelivery: () -> Unit = {},
 ) {
-    val total        = inventory.size
-    val warning      = inventory.count { it.expiryStatus() in listOf(ExpiryStatus.WARNING, ExpiryStatus.SOON) }
-    val todayExp     = inventory.count { it.daysLeft().let { d -> d in 0..1 } }
+    val total = inventory.distinctBy { it.name }.size
+    val warning = inventory.filter { it.daysLeft() in 4..7 }
+        .distinctBy { it.name }.size
+    val todayExp = inventory.filter { it.daysLeft() == 0 }
+        .distinctBy { it.name }.size
     val expiredItems = inventory.filter { it.daysLeft() < 0 }
+        .distinctBy { it.name }
+    val imminentItems = inventory.filter { it.daysLeft() in 0..3 }
+        .distinctBy { it.name }
 
     val context = LocalContext.current
     val scope   = rememberCoroutineScope()
     var ocrResult by remember { mutableStateOf<String?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
+    var urgentExpanded by remember { mutableStateOf(false) }
 
     val shopLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -203,7 +244,7 @@ private fun FullHomeScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.bg)) {
+    Column(modifier = Modifier.fillMaxSize().background(if (colors.isColorBlind) colors.bg else Color.White)) {
         if (marketArrivals.isNotEmpty() && !sheetOpen) {
             DeliveryArrivalBanner(
                 count   = marketArrivals.size,
@@ -213,62 +254,136 @@ private fun FullHomeScreen(
         }
 
         LazyColumn(
-            modifier = Modifier.weight(1f).background(colors.bg),
+            modifier = Modifier.weight(1f).background(if (colors.isColorBlind) colors.bg else Color.White),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
         ) {
 
-            // ── 인사말 + 제목 ─────────────────────────────────────────────────────
+            // ── Figma: 인사말 (기존 데이터 및 콜백 변경 없음) ──
             item {
-                Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        buildAnnotatedString {
-                            append("길민재 님의 ")
-                            pushStyle(SpanStyle(color = colors.accent))
-                            append("냉장고")
-                            pop()
-                        },
-                        fontSize   = if (sizes.fontBase >= 18) 25.sp else 23.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color      = colors.text,
-                    )
+                Column(Modifier.fillMaxWidth().padding(top = 17.dp, bottom = 7.dp)) {
+                    Text("길민재 님", fontSize = if (sizes.fontBase >= 18) 28.sp else 26.sp,
+                        fontWeight = FontWeight.Bold, color = homeInk(colors))
                 }
             }
 
-            // ── 통계 카드 ─────────────────────────────────────────────────────────
+            // ── Figma: 재고 현황 (total/warning/todayExp 원본 계산값 그대로) ──
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    StatCard(colors, total,    "보관 식재료", StatCardTone(fg = colors.accent,     bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
-                    StatCard(colors, warning,  "주의 필요",  StatCardTone(fg = colors.danger,     bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
-                    StatCard(colors, todayExp, "오늘 만료",  StatCardTone(fg = Color(0xFF9B6B1F), bg = colors.surfaceAlt), modifier = Modifier.weight(1f))
+                Column(Modifier.fillMaxWidth().padding(bottom = 19.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(if (colors.isColorBlind) colors.accentSoft else Color(0xFFDCEBDD))
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Text("현재 보관 중인 식재료", fontSize = 13.sp, color = homeMuted(colors))
+                        Spacer(Modifier.height(3.dp))
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text("$total", fontSize = 40.sp, lineHeight = 48.sp,
+                                fontWeight = FontWeight.ExtraBold, color = homeGreen(colors))
+                            Text("개", fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                                color = homeGreen(colors), modifier = Modifier.padding(bottom = 7.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(15.dp))
+                    Row(Modifier.fillMaxWidth().height(60.dp)) {
+                        Column(Modifier.weight(1f).padding(start = 2.dp)) {
+                            Text("주의 필요", fontSize = 13.sp, color = homeMuted(colors))
+                            Spacer(Modifier.height(8.dp))
+                            Text("${warning}개", fontSize = 25.sp, fontWeight = FontWeight.Bold,
+                                color = if (colors.isColorBlind) colors.danger else Color(0xFFA34D42))
+                        }
+                        Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0xFFF0F2EF)))
+                        Column(Modifier.weight(1f).padding(start = 19.dp)) {
+                            Text("오늘 만료", fontSize = 13.sp, color = homeMuted(colors))
+                            Spacer(Modifier.height(8.dp))
+                            Text("${todayExp}개", fontSize = 25.sp, fontWeight = FontWeight.Bold,
+                                color = homeGreen(colors))
+                        }
+                    }
                 }
             }
 
             // ── 유통기한 만료 배너 ────────────────────────────────────────────────
             item { ExpiredBannerItem(colors, expiredItems, onGoInv, onOpenItem) }
 
-            // ── 긴급 알림 ─────────────────────────────────────────────────────────
-            item { SectionHeader(colors, sizes, "긴급 알림", "${criticalItems.size}건의 처리가 필요해요", onMore = onGoNotif) }
-
-            items(criticalItems.take(3)) { item ->
-                UrgentRow(colors, item, onClick = { onOpenItem(item) })
-                Spacer(Modifier.height(8.dp))
+            // ── 긴급 알림: 만료 배너와 동일한 접기/펼치기 패턴 ────────────────
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 18.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (colors.isColorBlind) colors.accentSoft else Color(0xFFF1F4F0))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { urgentExpanded = !urgentExpanded }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(Modifier.width(14.dp), contentAlignment = Alignment.Center) {
+                            EatdaIcon(EatdaIcons.Leaf, tint = homeLink(colors), size = 19.dp)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "먼저 확인할 식재료 ${imminentItems.size}개",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = homeGreen(colors)
+                            )
+                            Text(
+                                "눌러서 식재료 목록을 확인하세요",
+                                fontSize = 12.sp,
+                                color = homeMuted(colors),
+                                modifier = Modifier.padding(top = 5.dp)
+                            )
+                        }
+                        EatdaIcon(
+                            if (urgentExpanded) EatdaIcons.ChevronDown else EatdaIcons.ChevronRight,
+                            tint = homeLink(colors),
+                            size = 18.dp
+                        )
+                    }
+                    AnimatedVisibility(visible = urgentExpanded) {
+                        Column(
+                            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            imminentItems.take(3).forEach { item ->
+                                UrgentRow(colors, item, onClick = { onOpenItem(item) })
+                            }
+                            if (imminentItems.isNotEmpty()) {
+                                Text(
+                                    "전체보기 →",
+                                    fontSize = 12.sp,
+                                    color = homeLink(colors),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(onClick = onGoImminent)
+                                        .padding(vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
-
-            item { Spacer(Modifier.height(6.dp)) }
 
             // ── 추천 레시피 ───────────────────────────────────────────────────────
             item {
-                SectionHeader(
-                    colors,
-                    sizes,
-                    "오늘의 추천 레시피",
-                    "보유 재료 기반",
-                    onMore = onGoRecipes
-                )
+                Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("오늘의 추천 레시피", fontSize = 19.sp,
+                            fontWeight = FontWeight.ExtraBold, color = homeInk(colors),
+                            modifier = Modifier.weight(1f))
+                        Text("전체보기 →", fontSize = 12.sp, color = homeLink(colors),
+                            modifier = Modifier.clickable(onClick = onGoRecipes))
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("보유 재료 기반", fontSize = 12.sp, color = homeMuted(colors))
+                }
             }
 
             item {
@@ -280,21 +395,22 @@ private fun FullHomeScreen(
 
                 recommended.firstOrNull()?.let { recipe ->
 
-                    val matchedIngredientCount = recipe.ingredients.count { ingredient ->
-                        inventory.any { item ->
+                    // RecipesScreen과 동일한 재료 매칭 기준 적용
+                    val ingredientQuantityRegex = Regex(
+                        """\(?\d+(?:\.\d+)?(?:/\d+)?\s*(?:kg|g|mg|ml|l|개|모|팩|봉|장|대|통|구|병|캔|컵|인분)\)?$"""
+                    )
+                    fun normalizeIngredient(name: String): String = name
+                        .trim()
+                        .replace(" ", "")
+                        .replace("　", "")
+                        .replace(ingredientQuantityRegex, "")
+                        .trim()
 
-                            val recipeName = ingredient
-                                .trim()
-                                .replace(" ", "")
-                                .replace("　", "")
-
-                            val inventoryName = item.name
-                                .trim()
-                                .replace(" ", "")
-                                .replace("　", "")
-
-                            recipeName.contains(inventoryName) ||
-                                    inventoryName.contains(recipeName)
+                    val matchedIngredientCount = recipe.ingredients.distinct().count { ingredient ->
+                        val recipeName = normalizeIngredient(ingredient)
+                        recipeName.isNotBlank() && inventory.any { item ->
+                            item.expiryStatus() != ExpiryStatus.EXPIRED &&
+                                    recipeName == normalizeIngredient(item.name)
                         }
                     }
 
@@ -311,9 +427,9 @@ private fun FullHomeScreen(
 
             // ── 싱싱마켓 배너 ─────────────────────────────────────────────────────
             item {
-                val shopBrand     = Color(0xFF2F6DB5)
-                val shopBrandSoft = Color(0xFFE4EDF7)
-                val shopBrandDeep = Color(0xFF1E4E85)
+                val shopBrand     = Color(0xFF35546A)
+                val shopBrandSoft = Color(0xFFD7E3EF)
+                val shopBrandDeep = Color(0xFF283945)
 
                 Spacer(Modifier.height(8.dp))
                 Row(
@@ -321,8 +437,8 @@ private fun FullHomeScreen(
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Brush.linearGradient(listOf(shopBrandSoft, Color(0xFFD6E6F7))))
-                        .border(1.dp, shopBrand.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                        .background(if (colors.isColorBlind) colors.accentSoft else shopBrandSoft)
+                        .border(1.dp, if (colors.isColorBlind) colors.border else Color(0xFFCBDBE9), RoundedCornerShape(14.dp))
                         .clickable {
                             shopLauncher.launch(
                                 Intent(context, com.eatda.app.ui.shop.ShopWebViewActivity::class.java)
@@ -336,7 +452,7 @@ private fun FullHomeScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(RoundedCornerShape(11.dp))
-                            .background(shopBrand),
+                            .background(Color(0xFFC6D9E8)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text("🛒", fontSize = 20.sp)
@@ -412,13 +528,12 @@ private fun UrgentRow(colors: EatdaColors, item: FoodItem, onClick: () -> Unit) 
     val expiryText = if (colors.isColorBlind && isDanger) "⚠ ${item.formatExpiry()}" else item.formatExpiry()
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+        modifier = Modifier.fillMaxWidth().heightIn(min = 70.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (colors.isColorBlind) colors.surface else Color.White)
+            .border(1.dp, if (colors.isColorBlind) colors.border else Color(0xFFE2E7E2), RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(12.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
             .semantics {
                 contentDescription = buildString {
                     append("${item.name}, ${item.qty}")
@@ -426,37 +541,28 @@ private fun UrgentRow(colors: EatdaColors, item: FoodItem, onClick: () -> Unit) 
                     if (item.isAllergen) append(", 알레르기 주의")
                 }
             },
-        verticalAlignment    = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp)
     ) {
-        EatdaIcon(EatdaIcons.Warn, tint = dotColor, size = 18.dp)
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(cat.hexColor).copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (colors.isColorBlind) colors.surfaceAlt else Color(0xFFF1F4F0)),
+            contentAlignment = Alignment.Center) {
             Text(foodEmoji[item.name] ?: item.name.first().toString(), fontSize = 18.sp)
         }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.text)
-            Text(
-                "${item.qty} · ${item.expiry.toString().replace("-", ".")}",
-                fontSize = 11.sp,
-                color = colors.textMuted,
-                modifier = Modifier.padding(top = 1.dp)
-            )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(item.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = homeInk(colors))
+            Text("${item.qty} · ${item.expiry.toString().replace("-", ".")}", fontSize = 12.sp,
+                color = if (colors.isColorBlind) colors.textMuted else Color(0xFF596B61))
         }
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(7.dp))
-                .background(badgeBg)
-                .padding(horizontal = 10.dp, vertical = 5.dp),
-        ) {
-            Text(expiryText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = badgeFg)
+        Box(Modifier.clip(RoundedCornerShape(9.dp))
+            .background(if (colors.isColorBlind) badgeBg else Color(0xFFF8F0ED))
+            .padding(horizontal = 10.dp, vertical = 9.dp)) {
+            Text(expiryText,
+                fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                color = if (colors.isColorBlind) badgeFg else Color(0xFF99564D))
         }
     }
+
 }
 
 @Composable
@@ -466,82 +572,43 @@ private fun RecipeHero(
     matchedIngredientCount: Int,
     onClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 155.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
+            .border(1.dp, if (colors.isColorBlind) colors.border else Color(0xFFE2E7E2), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp)
-                .background(Brush.linearGradient(listOf(colors.accentSoft, colors.surfaceAlt))),
-            contentAlignment = Alignment.BottomStart,
-        ) {
-            AsyncImage(
-                model = recipe.imageUrl,
-                contentDescription = recipe.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-            Box(modifier = Modifier.fillMaxSize().background(colors.accentSoft.copy(alpha = 0.08f)))
-            Row(
-                modifier = Modifier
-                    .padding(12.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(colors.surface)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                verticalAlignment    = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                EatdaIcon(EatdaIcons.Sparkle, tint = colors.accent, size = 11.dp)
-                Text(recipe.priority ?: recipe.tag, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = colors.accent)
+        Box(Modifier.width(149.dp).height(155.dp)
+            .background(if (colors.isColorBlind) colors.surfaceAlt else Color(0xFFE4E8E2))) {
+            AsyncImage(model = recipe.imageUrl, contentDescription = recipe.title,
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.align(Alignment.BottomStart).padding(9.dp)
+                .clip(RoundedCornerShape(5.dp)).background(colors.surface)
+                .padding(horizontal = 8.dp, vertical = 6.dp)) {
+                Text(recipe.priority ?: recipe.tag, fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold, color = homeLink(colors))
             }
         }
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text(
-                "${recipe.minutes}분 · 보유 재료 ${matchedIngredientCount}개",
-                fontSize = 11.sp,
-                color = colors.textMuted,
-            )
-
-            Text(
-                recipe.title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = colors.text,
-                maxLines = 2,
-            )
-
-            Spacer(Modifier.height(6.dp))
-
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                maxLines = 2,
-            ) {
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp, top = 20.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Text(recipe.title, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                color = homeInk(colors), maxLines = 2)
+            Text("${recipe.minutes}분 · 보유 재료 ${matchedIngredientCount}개",
+                fontSize = 12.sp, color = homeMuted(colors))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp), maxLines = 2) {
                 recipe.ingredients.forEach { ing ->
-                    Text(
-                        text = ing,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.accentDeep,
-                        modifier = Modifier
-                            .background(
-                                colors.accentSoft,
-                                RoundedCornerShape(999.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                    Text(ing, fontSize = 11.sp,
+                        color = if (colors.isColorBlind) colors.accentDeep else Color(0xFF496953),
+                        modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                            .background(if (colors.isColorBlind) colors.accentSoft else Color(0xFFEDF3ED))
+                            .padding(horizontal = 6.dp, vertical = 6.dp))
                 }
             }
-
         }
     }
+
 }
 
 @Composable
@@ -586,9 +653,8 @@ private fun ExpiredBannerItem(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(colors.dangerSoft)
-                    .border(1.dp, colors.danger.copy(alpha = 0.2f), RoundedCornerShape(14.dp)),
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (colors.isColorBlind) colors.dangerSoft else Color(0xFFF9F3F1)),
             ) {
                 Row(
                     modifier = Modifier
@@ -598,18 +664,13 @@ private fun ExpiredBannerItem(
                     verticalAlignment    = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(colors.danger),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        EatdaIcon(EatdaIcons.Warn, tint = Color.White, size = 20.dp)
+                    Box(Modifier.width(14.dp), contentAlignment = Alignment.Center) {
+                        Text("!", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                            color = if (colors.isColorBlind) colors.danger else Color(0xFFA34D42))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("유통기한 지난 식품 ${items.size}개", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = colors.danger)
-                        Text("바로 확인하고 폐기 또는 출고하세요",  fontSize = 11.sp, color = colors.textMuted, modifier = Modifier.padding(top = 2.dp))
+                        Text("소비기한이 지난 식품 ${items.size}개", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (colors.isColorBlind) colors.danger else Color(0xFF93493E))
+                        Text("지금 확인하고 정리해 주세요", fontSize = 12.sp, color = if (colors.isColorBlind) colors.textMuted else Color(0xFF77706D), modifier = Modifier.padding(top = 5.dp))
                     }
                     EatdaIcon(
                         if (expanded) EatdaIcons.ChevronDown else EatdaIcons.ChevronRight,
@@ -783,3 +844,9 @@ private fun FreshnessNudgeBubble(colors: EatdaColors, item: FoodItem, onOpenShop
 }
 
 private val EatdaColors.isColorBlind: Boolean get() = this == ColorBlindEatdaColors
+
+// Figma palette used only by the normal home UI. Color-accessibility mode keeps theme colors.
+private fun homeInk(colors: EatdaColors) = if (colors.isColorBlind) colors.text else Color(0xFF242C27)
+private fun homeMuted(colors: EatdaColors) = if (colors.isColorBlind) colors.textMuted else Color(0xFF65736B)
+private fun homeGreen(colors: EatdaColors) = if (colors.isColorBlind) colors.accentDeep else Color(0xFF254D39)
+private fun homeLink(colors: EatdaColors) = if (colors.isColorBlind) colors.accent else Color(0xFF28794A)

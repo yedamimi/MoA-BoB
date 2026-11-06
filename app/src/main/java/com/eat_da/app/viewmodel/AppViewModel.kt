@@ -1259,7 +1259,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             // ── 유통기한 조회 ─────────────────────────────────────────────────
             is VoiceCommand.ExpiryQuery -> {
-                val item = inv.firstOrNull { it.name == command.foodName }
+                val item = inv
+                    .filter { it.name == command.foodName }
+                    .minByOrNull { it.expiry }
                 val msg = if (item == null) {
                     "${command.foodName}${command.foodName.josa("은", "는")} 냉장고에 등록되지 않았습니다."
                 } else {
@@ -1268,7 +1270,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     buildString {
                         append("${item.name}의 유통기한은 ${d.monthValue}월 ${d.dayOfMonth}일입니다.")
                         when {
-                            days <= 0 -> append(" 이미 만료됐습니다.")
+                            days < 0 -> append(" 이미 만료됐습니다.")
+                            days == 0 -> append(" 오늘까지입니다.")
                             days == 1 -> append(" 내일 만료됩니다.")
                             days <= 3 -> append(" ${days}일 남았습니다.")
                         }
@@ -1282,19 +1285,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val msg = if (items.isEmpty()) {
                     "아니요, 냉장고에 ${command.foodName}${command.foodName.josa("이", "가")} 없습니다."
                 } else {
-                    val qtyText = items.firstOrNull()?.qty ?: "1개"
+                    // 동일 식재료의 개별 재고를 단위별로 합산 (단위가 다르면 구분해 안내)
+                    val quantities = items.map { item -> parseQty(item.qty) }
+                    val qtyText = if (quantities.all { it != null }) {
+                        quantities.filterNotNull()
+                            .groupBy { it.unit }
+                            .entries.joinToString(", ") { (unit, entries) ->
+                                "${entries.sumOf { it.amount }}$unit"
+                            }
+                    } else {
+                        items.joinToString(", ") { it.qty }
+                    }
                     "네, 냉장고에 ${command.foodName}${command.foodName.josa("이", "가")} ${qtyText} 있습니다."
                 }
                 _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
             }
 
             is VoiceCommand.ExpiringSoon -> {
-                val days      = command.days
-                val threshold = LocalDate.now().plusDays(days.toLong())
-                val expiring  = inv
-                    .filter { !it.expiry.isAfter(threshold) }
+                val days = command.days
+
+                val expiring = inv
+                    .filter { it.daysLeft() == days }
                     .sortedBy { it.expiry }
+
+                val uniqueNames = expiring.map { it.name }.distinct()
+
                 val dayLabel = when (days) {
+                    0    -> "오늘까지"
                     1    -> "하루"
                     2    -> "이틀"
                     3    -> "사흘"
@@ -1303,15 +1320,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     7    -> "일주일"
                     else -> "${days}일"
                 }
-                val msg = when (expiring.size) {
-                    0    -> "네, $dayLabel 이내 유통기한이 만료되는 식품은 없습니다."
-                    1    -> "네, 유통기한 $dayLabel 남은 제품은 ${expiring[0].name}입니다."
+
+
+                val msg = when (uniqueNames.size) {
+                    0 -> {
+                        if (days == 0) {
+                            "네, 유통기한이 오늘까지인 식품은 없습니다."
+                        } else {
+                            "네, 유통기한이 정확히 $dayLabel 남은 식품은 없습니다."
+                        }
+                    }
+                    1 -> {
+                        if (days == 0) {
+                            "네, 유통기한이 오늘까지인 제품은 ${uniqueNames[0]}입니다."
+                        } else {
+                            "네, 유통기한이 $dayLabel 남은 제품은 ${uniqueNames[0]}입니다."
+                        }
+                    }
                     else -> {
-                        val names = expiring.joinToString(", ") { it.name }
-                        "네, 유통기한 $dayLabel 남은 제품은 ${names}입니다."
+                        val names = uniqueNames.joinToString(", ")
+                        if (days == 0) {
+                            "네, 유통기한이 오늘까지인 제품은 ${names}입니다."
+                        } else {
+                            "네, 유통기한이 $dayLabel 남은 제품은 ${names}입니다."
+                        }
                     }
                 }
-                _state.update { it.copy(pendingTts = msg, lastVoiceResponse = msg) }
+
+
+                _state.update {
+                    it.copy(pendingTts = msg, lastVoiceResponse = msg)
+                }
             }
 
             is VoiceCommand.DeleteFood -> {

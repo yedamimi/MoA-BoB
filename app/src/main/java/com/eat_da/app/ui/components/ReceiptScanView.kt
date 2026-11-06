@@ -97,33 +97,36 @@ fun ReceiptScanView(
     // 화면 위에 겹쳐 뜨므로, 아래 화면보다 먼저 뒤로가기를 받도록 여기서 처리
     BackHandler(onBack = onClose)
 
+    // 일반 모드만 흰색 배경, 색각 이상 모드는 기존 배경 유지
+    val pageBackground = if (colors == ColorBlindEatdaColors) colors.bg else Color.White
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bg),
+            .background(pageBackground),
     ) {
         // ── 헤더 ─────────────────────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(13.dp))
                     .background(colors.surface)
-                    .border(1.dp, colors.border, RoundedCornerShape(10.dp))
+                    .border(1.dp, colors.border, RoundedCornerShape(13.dp))
                     .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
                 EatdaIcon(EatdaIcons.Close, tint = colors.text, size = 16.dp)
             }
             Column {
-                Text("영수증 스캔", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
-                Text("장 본 영수증으로 한 번에 입고", fontSize = 11.sp, color = colors.textMuted)
+                Text("영수증 스캔", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
+                Text("장 본 영수증으로 한 번에 입고", fontSize = 13.sp, color = colors.textMuted)
             }
         }
 
@@ -131,8 +134,8 @@ fun ReceiptScanView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             ReceiptSourceButton(
                 colors = colors,
@@ -152,7 +155,7 @@ fun ReceiptScanView(
             )
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(18.dp))
 
         // ── 상태 / 결과 ──────────────────────────────────────────────────────
         when (phase) {
@@ -180,7 +183,7 @@ fun ReceiptScanView(
 
             ReceiptPhase.DONE -> LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 errorMsg?.let { msg ->
@@ -188,7 +191,7 @@ fun ReceiptScanView(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(colors.warningSoft)
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                         ) {
@@ -252,7 +255,7 @@ fun ReceiptScanView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Box(
@@ -332,11 +335,11 @@ private fun ReceiptSourceButton(
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(if (enabled) colors.accentSoft else colors.surfaceAlt)
-            .border(1.dp, colors.accent.copy(alpha = if (enabled) 0.25f else 0.1f), RoundedCornerShape(14.dp))
+            .border(1.dp, colors.accent.copy(alpha = if (enabled) 0.25f else 0.1f), RoundedCornerShape(16.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 16.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -366,13 +369,13 @@ private fun ReceiptMessage(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("🧾", fontSize = 40.sp)
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.text)
+            Text("🧾", fontSize = 48.sp)
+            Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = colors.text)
             Text(
                 sub,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 color = colors.textFaint,
-                lineHeight = 18.sp,
+                lineHeight = 20.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
         }
@@ -393,9 +396,9 @@ private fun ReceiptEntryRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(colors.surface)
-            .border(1.dp, if (entry.checked) colors.border else colors.border.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .border(1.dp, if (entry.checked) colors.border else colors.border.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
             .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
