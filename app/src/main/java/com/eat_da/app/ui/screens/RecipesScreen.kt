@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -134,7 +136,7 @@ fun RecipesScreen(
             .distinct()
             .count { ingredient ->
                 inventory.any { item ->
-                    isIngredientMatched(
+                    item.expiryStatus() != ExpiryStatus.EXPIRED && isIngredientMatched(
                         ingredient,
                         item.name
                     )
@@ -158,9 +160,15 @@ fun RecipesScreen(
     ) {
         if (recipeFocusIngredient != null) {
 
+            // 경과 재료만 보유한 경우에는 해당 재료 중심 추천을 표시하지 않음
+            val hasUsableFocusIngredient = inventory.any { item ->
+                item.expiryStatus() != ExpiryStatus.EXPIRED &&
+                        isIngredientMatched(item.name, recipeFocusIngredient)
+            }
+
             recipes
                 .filter { recipe ->
-                    recipe.ingredients.any { ingredient ->
+                    hasUsableFocusIngredient && recipe.ingredients.any { ingredient ->
                         isIngredientMatched(
                             ingredient,
                             recipeFocusIngredient
@@ -307,7 +315,6 @@ fun RecipesScreen(
     val expiringItems = inventory
         .filter {
             it.expiryStatus() in listOf(
-                ExpiryStatus.EXPIRED,
                 ExpiryStatus.CRITICAL,
                 ExpiryStatus.WARNING
             )
@@ -322,7 +329,7 @@ fun RecipesScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bg),
+            .background(if (colors.isColorBlind || colors.isA11y) colors.bg else Color.White),
         contentPadding = PaddingValues(
             horizontal = 16.dp,
             vertical = 0.dp
@@ -448,12 +455,10 @@ fun RecipesScreen(
                             RoundedCornerShape(16.dp)
                         )
                         .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    colors.accent,
-                                    colors.accentDeep
-                                )
-                            )
+                            if (colors.isColorBlind || colors.isA11y)
+                                Brush.linearGradient(listOf(colors.accent, colors.accentDeep))
+                            else
+                                Brush.linearGradient(listOf(Color(0xFFDCEBDD), Color(0xFFDCEBDD)))
                         )
                         .padding(14.dp)
                         .padding(bottom = 14.dp),
@@ -464,9 +469,7 @@ fun RecipesScreen(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         color =
-                            Color.White.copy(
-                                alpha = 0.85f
-                            )
+                            if (colors.isColorBlind || colors.isA11y) Color.White.copy(alpha = 0.85f) else Color(0xFF496953)
                     )
 
                     Spacer(
@@ -479,7 +482,7 @@ fun RecipesScreen(
                         },
                         fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
+                        color = if (colors.isColorBlind || colors.isA11y) Color.White else Color(0xFF254D39)
                     )
 
                     Spacer(
@@ -514,9 +517,7 @@ fun RecipesScreen(
                         },
                         fontSize = 12.sp,
                         color =
-                            Color.White.copy(
-                                alpha = 0.85f
-                            )
+                            if (colors.isColorBlind || colors.isA11y) Color.White.copy(alpha = 0.85f) else Color(0xFF496953)
                     )
                 }
 
@@ -692,44 +693,35 @@ private fun RecipeCard(
     onClick: () -> Unit,
 ) {
 
-    Column(
+    // 홈 화면 RecipeHero와 동일한 가로형 카드 스타일.
+    // recipe 데이터, 조건문, 클릭 콜백, 전체 재료 태그 표시는 기존대로 유지.
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(
-                RoundedCornerShape(16.dp)
+            .then(
+                if (colors.isA11y) Modifier.heightIn(min = 205.dp)
+                else Modifier.height(205.dp)
             )
-            .background(colors.surface)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (colors.isColorBlind || colors.isA11y) colors.surface else Color.White)
             .border(
                 1.dp,
-                colors.border,
-                RoundedCornerShape(16.dp)
+                if (colors.isColorBlind || colors.isA11y) colors.border else Color(0xFFE2E7E2),
+                RoundedCornerShape(14.dp)
             )
-            .clickable {
-                onClick()
-            },
+            .clickable { onClick() },
     ) {
-
-        // ─────────────────────────────
-        // 카드 상단 이미지 영역
-        // ─────────────────────────────
-
+        // 이미지: 기존 API 이미지 주소와 priority 조건을 그대로 사용.
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
+                .width(132.dp)
+                .fillMaxHeight()
                 .background(
-                    Brush.linearGradient(
-                        listOf(
-                            colors.accentSoft,
-                            colors.surfaceAlt
-                        )
-                    )
-                ),
+                    if (colors.isColorBlind || colors.isA11y) colors.surfaceAlt
+                    else Color(0xFFE4E8E2)
+                )
         ) {
-
-            // 식품안전나라 대표 음식 사진
             if (recipe.imageUrl.isNotBlank()) {
-
                 AsyncImage(
                     model = recipe.imageUrl,
                     contentDescription = recipe.title,
@@ -738,23 +730,15 @@ private fun RecipeCard(
                 )
             }
 
-            // API에서 priority 정보가 있는 경우
-            // 기존 배지 표시
             if (recipe.priority != null) {
-
                 Box(
                     modifier = Modifier
-                        .padding(8.dp)
-                        .clip(
-                            RoundedCornerShape(999.dp)
-                        )
+                        .align(Alignment.BottomStart)
+                        .padding(9.dp)
+                        .clip(RoundedCornerShape(5.dp))
                         .background(colors.danger)
-                        .padding(
-                            horizontal = 8.dp,
-                            vertical = 4.dp
-                        )
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
                 ) {
-
                     Text(
                         recipe.priority,
                         fontSize = 10.sp,
@@ -765,104 +749,72 @@ private fun RecipeCard(
             }
         }
 
-        // ─────────────────────────────
-        // 카드 내용
-        // ─────────────────────────────
-
         Column(
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp, end = 10.dp, top = 14.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-
-            // 제목 + 화살표
+            // 기존 제목과 상세 이동 버튼을 유지.
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween,
-                verticalAlignment =
-                    Alignment.Top
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         recipe.title,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.text
                     )
-
                     Text(
                         "${recipe.tag} · ${recipe.minutes}분",
                         fontSize = 12.sp,
                         color = colors.textMuted,
-                        modifier = Modifier.padding(
-                            top = 2.dp
-                        )
+                        modifier = Modifier.padding(top = 3.dp)
                     )
                 }
 
-                // 오른쪽 화살표
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
                         .background(colors.surface)
-                        .border(
-                            1.dp,
-                            colors.border,
-                            CircleShape
-                        )
-                        .clickable {
-                            onClick()
-                        },
-                    contentAlignment =
-                        Alignment.Center
+                        .border(1.dp, colors.border, CircleShape)
+                        .clickable { onClick() },
+                    contentAlignment = Alignment.Center
                 ) {
-
                     EatdaIcon(
                         EatdaIcons.ChevronRight,
                         tint = colors.text,
-                        size = 16.dp
+                        size = 15.dp
                     )
                 }
             }
 
-            Spacer(
-                Modifier.height(10.dp)
-            )
-
-            // ─────────────────────────────
-            // 재료 태그
-            // ─────────────────────────────
-
+            // 기존 전체 재료 반복과 이모지/문구를 그대로 유지.
             FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.spacedBy(6.dp),
-                verticalArrangement =
-                    Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (colors.isA11y) Modifier
+                        else Modifier.weight(1f).verticalScroll(rememberScrollState())
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-
                 recipe.ingredients.forEach { ing ->
-
                     Box(
                         modifier = Modifier
-                            .clip(
-                                RoundedCornerShape(999.dp)
-                            )
+                            .clip(RoundedCornerShape(5.dp))
                             .background(
-                                colors.accentSoft
+                                if (colors.isColorBlind || colors.isA11y) colors.accentSoft
+                                else Color(0xFFEDF3ED)
                             )
-                            .padding(
-                                horizontal = 10.dp,
-                                vertical = 4.dp
-                            )
+                            .padding(horizontal = 7.dp, vertical = 5.dp)
                     ) {
-
                         val emoji = foodEmoji[ing]
-
                         Text(
                             text = if (emoji != null) {
                                 "$emoji $ing"

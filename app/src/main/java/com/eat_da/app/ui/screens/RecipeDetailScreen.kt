@@ -30,10 +30,16 @@ fun RecipeDetailScreen(
     recipe: Recipe,
     onBack: () -> Unit,
 ) {
+    // UI-only palette: preserve existing accessibility theme colors.
+    val detailBackground = if (colors.isColorBlind || colors.isA11y) colors.bg else Color.White
+    val detailSurface = if (colors.isColorBlind || colors.isA11y) colors.surface else Color.White
+    val detailBorder = if (colors.isColorBlind || colors.isA11y) colors.border else Color(0xFFE2E7E2)
+    val detailHeading = if (colors.isColorBlind || colors.isA11y) colors.text else Color(0xFF254D39)
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bg),
+            .background(detailBackground),
         contentPadding = PaddingValues(
             horizontal = 16.dp,
             vertical = 14.dp
@@ -81,12 +87,12 @@ fun RecipeDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        colors.surface,
+                        if (colors.isColorBlind || colors.isA11y) detailSurface else Color(0xFFDCEBDD),
                         RoundedCornerShape(16.dp)
                     )
                     .border(
                         1.dp,
-                        colors.border,
+                        detailBorder,
                         RoundedCornerShape(16.dp)
                     )
                     .padding(16.dp)
@@ -124,12 +130,23 @@ fun RecipeDetailScreen(
         // ─────────────────────────────
 
         item {
-            Text(
-                "재료",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = colors.text
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                EatdaIcon(
+                    EatdaIcons.Leaf,
+                    tint = detailHeading,
+                    size = 20.dp
+                )
+                Text(
+                    "재료",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = detailHeading
+                )
+            }
         }
 
         item {
@@ -137,12 +154,12 @@ fun RecipeDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        colors.surface,
+                        detailSurface,
                         RoundedCornerShape(16.dp)
                     )
                     .border(
                         1.dp,
-                        colors.border,
+                        detailBorder,
                         RoundedCornerShape(16.dp)
                     )
                     .padding(14.dp),
@@ -205,12 +222,23 @@ fun RecipeDetailScreen(
         // ─────────────────────────────
 
         item {
-            Text(
-                "영양정보",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = colors.text
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                EatdaIcon(
+                    EatdaIcons.Sparkle,
+                    tint = detailHeading,
+                    size = 20.dp
+                )
+                Text(
+                    "영양정보",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = detailHeading
+                )
+            }
         }
 
         item {
@@ -218,12 +246,12 @@ fun RecipeDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        colors.surface,
+                        detailSurface,
                         RoundedCornerShape(16.dp)
                     )
                     .border(
                         1.dp,
-                        colors.border,
+                        detailBorder,
                         RoundedCornerShape(16.dp)
                     )
                     .padding(14.dp),
@@ -267,12 +295,23 @@ fun RecipeDetailScreen(
         // ─────────────────────────────
 
         item {
-            Text(
-                "조리과정",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = colors.text
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                EatdaIcon(
+                    EatdaIcons.Sparkle,
+                    tint = detailHeading,
+                    size = 20.dp
+                )
+                Text(
+                    "조리과정",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = detailHeading
+                )
+            }
         }
 
         if (recipe.cookingSteps.isEmpty()) {

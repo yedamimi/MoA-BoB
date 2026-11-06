@@ -73,7 +73,7 @@ fun EatdaTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.bg)
+            .background(if (colors.isColorBlind || colors.isA11y) colors.bg else Color.White)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -117,8 +117,7 @@ fun EatdaTopBar(
             modifier = Modifier
                 .size(38.dp)
                 .clip(CircleShape)
-                .background(colors.surface)
-                .border(1.dp, colors.border, CircleShape)
+                .background(if (!colors.isColorBlind && !colors.isA11y) Color(0xFFF3F6F3) else colors.surface)
                 .clickable(onClick = onNotif)
                 .semantics { contentDescription = if (hasNotif) "알림, 새 알림 있음" else "알림" },
             contentAlignment = Alignment.Center,
@@ -132,13 +131,14 @@ fun EatdaTopBar(
                         .offset((-9).dp, 8.dp)
                         .clip(CircleShape)
                         .background(colors.danger)
-                        .border(1.5.dp, colors.surface, CircleShape)
+                        .border(1.5.dp, if (!colors.isColorBlind && !colors.isA11y) Color.White else colors.surface, CircleShape)
                 )
             }
         }
 
-        val profileBg = if (profileActive) colors.accentSoft else colors.surface
-        val profileBorder = if (profileActive) colors.accent else colors.border
+        val figmaTop = !colors.isColorBlind && !colors.isA11y
+        val profileBg = if (figmaTop) Color(0xFFE3EEE5) else if (profileActive) colors.accentSoft else colors.surface
+        val profileBorder = if (figmaTop) Color.Transparent else if (profileActive) colors.accent else colors.border
         Box(
             modifier = Modifier
                 .size(38.dp)
@@ -163,11 +163,12 @@ fun EatdaBottomNav(
     onNav: (Screen) -> Unit,
     onScan: () -> Unit,
 ) {
-    val borderColor = colors.border
+    val figmaStyle = !colors.isColorBlind && !colors.isA11y
+    val borderColor = if (figmaStyle) Color(0xFFE6EAE6) else colors.border
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.surface)
+            .background(if (figmaStyle) Color.White else colors.surface)
             .drawBehind {
                 val stroke = 1.dp.toPx()
                 drawLine(
@@ -186,19 +187,32 @@ fun EatdaBottomNav(
             NavTab(colors, sizes, Screen.SETTINGS,  EatdaIcons.Settings, "설정",  currentScreen, onNav)
         }
 
-        Box(
+        Column(
             modifier = Modifier
-                .size(56.dp)
                 .align(Alignment.TopCenter)
-                .offset(y = (-22).dp)
-                .clip(CircleShape)
-                .background(colors.accent)
-                .border(4.dp, colors.bg, CircleShape)
+                .offset(y = (-9).dp)
+                .width(64.dp)
                 .clickable(onClick = onScan)
-                .semantics { contentDescription = "스캔하기"; role = Role.Button },
-            contentAlignment = Alignment.Center,
+                .semantics { contentDescription = "촬영하기"; role = Role.Button },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            EatdaIcon(EatdaIcons.Camera, tint = Color.White, size = 24.dp)
+            Box(
+                modifier = Modifier
+                    .size(if (sizes.isA11y) 52.dp else 48.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent)
+                    .border(4.dp, if (figmaStyle) Color.White else colors.bg, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                EatdaIcon(EatdaIcons.Camera, tint = Color.White, size = if (sizes.isA11y) 22.dp else 20.dp)
+            }
+            Text(
+                "촬영",
+                fontSize = if (sizes.isA11y) 11.sp else 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.accent,
+            )
         }
     }
 }
@@ -214,7 +228,7 @@ private fun RowScope.NavTab(
     onNav: (Screen) -> Unit,
 ) {
     val active = current == screen
-    val tint = if (active) colors.accent else colors.textMuted
+    val tint = if (active) colors.accent else if (!colors.isColorBlind && !colors.isA11y) Color(0xFF718077) else colors.textMuted
     Column(
         modifier = Modifier
             .weight(1f)
@@ -224,7 +238,44 @@ private fun RowScope.NavTab(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        EatdaIcon(icon, tint = tint, size = if (sizes.isA11y) 24.dp else 22.dp)
+        if (screen == Screen.SETTINGS) {
+            // 단순한 선형 톱니바퀴: 기존 설정 탭 동작과 선택 색상은 그대로 사용
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier.size(if (sizes.isA11y) 24.dp else 20.dp)
+            ) {
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                val outer = size.minDimension * 0.39f
+                val inner = size.minDimension * 0.29f
+                val stroke = 1.7.dp.toPx()
+                for (i in 0 until 8) {
+                    val angle = (i * Math.PI / 4.0).toFloat()
+                    val dx = kotlin.math.cos(angle)
+                    val dy = kotlin.math.sin(angle)
+                    drawLine(
+                        color = tint,
+                        start = Offset(cx + inner * dx, cy + inner * dy),
+                        end = Offset(cx + outer * dx, cy + outer * dy),
+                        strokeWidth = stroke,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    )
+                }
+                drawCircle(
+                    color = tint,
+                    radius = inner,
+                    center = Offset(cx, cy),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+                )
+                drawCircle(
+                    color = tint,
+                    radius = size.minDimension * 0.09f,
+                    center = Offset(cx, cy),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+                )
+            }
+        } else {
+            EatdaIcon(icon, tint = tint, size = if (sizes.isA11y) 24.dp else 20.dp)
+        }
         Text(
             label,
             fontSize = if (sizes.isA11y) 11.sp else 10.sp,

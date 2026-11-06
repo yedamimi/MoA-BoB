@@ -45,7 +45,7 @@ fun ItemDetailSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = colors.bg,
+        containerColor = colors.surface,
         contentColor = colors.text,
     ) {
         Column(
@@ -54,7 +54,7 @@ fun ItemDetailSheet(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val cat = item.category
             val dl = item.daysLeft()
@@ -81,7 +81,12 @@ fun ItemDetailSheet(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.padding(bottom = 6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(colors.accent.copy(alpha = 0.12f))
+                    .padding(14.dp)
+                    .padding(bottom = 2.dp),
             ) {
                 Box(
                     modifier = Modifier
@@ -214,14 +219,14 @@ fun ItemDetailSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(colors.surface)
                     .border(
                         1.dp,
                         colors.border,
-                        RoundedCornerShape(14.dp)
+                        RoundedCornerShape(16.dp)
                     )
-                    .padding(14.dp),
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Row(
@@ -280,25 +285,29 @@ fun ItemDetailSheet(
                     }
                 }
 
-                // 날짜 표시
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 4.dp),
+                // 소비기한 상태와 날짜를 분리하여 가독성 개선 (기존 데이터 표시식 유지)
+                Box(
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(expiryColor.copy(alpha = 0.10f))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
                 ) {
                     Text(
                         item.formatExpiry(),
-                        fontSize = 22.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = expiryColor
-                    )
-
-                    Text(
-                        item.expiry.toString(),
-                        fontSize = 12.sp,
-                        color = colors.textMuted
+                        color = expiryColor,
                     )
                 }
+
+                Text(
+                    item.expiry.toString(),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.text,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
 
                 Text(
                     when {
@@ -329,14 +338,14 @@ fun ItemDetailSheet(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(colors.surface)
                         .border(
                             1.dp,
                             colors.border,
-                            RoundedCornerShape(14.dp)
+                            RoundedCornerShape(16.dp)
                         )
-                        .padding(14.dp),
+                        .padding(16.dp),
                 ) {
                     Row(
                         modifier = Modifier
@@ -421,14 +430,14 @@ fun ItemDetailSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.surfaceAlt)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFFEDF3ED))
                         .border(
                             1.dp,
                             colors.border,
-                            RoundedCornerShape(14.dp)
+                            RoundedCornerShape(16.dp)
                         )
-                        .padding(14.dp),
+                        .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -460,12 +469,12 @@ fun ItemDetailSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(colors.dangerSoft)
                     .border(
                         1.dp,
                         colors.danger.copy(alpha = 0.35f),
-                        RoundedCornerShape(12.dp)
+                        RoundedCornerShape(14.dp)
                     )
                     .clickable {
                         showDeleteDialog = true
@@ -486,12 +495,12 @@ fun ItemDetailSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 6.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(colors.surface)
                     .border(
                         1.dp,
                         colors.border,
-                        RoundedCornerShape(12.dp)
+                        RoundedCornerShape(14.dp)
                     )
                     .clickable(onClick = onDismiss)
                     .padding(vertical = 14.dp),

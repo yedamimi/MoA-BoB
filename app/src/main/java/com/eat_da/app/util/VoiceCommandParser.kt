@@ -191,10 +191,16 @@ object VoiceCommandParser {
             "나흘" in t                               -> 4
             "닷새" in t                               -> 5
             "일주일" in t                             -> 7
-            "오늘" in t && "만료" in t                -> 1
+            "오늘" in t || "당일" in t                -> 0
             else -> {
-                Regex("""(\d+)\s*일""").find(t)
-                    ?.groupValues?.get(1)?.toIntOrNull() ?: 3
+                val daysWithUnit = Regex("""(\d+)\s*일""")
+                    .find(t)?.groupValues?.get(1)?.toIntOrNull()
+
+                val daysWithoutUnit = Regex(
+                    """(?:유통기한|소비기한)\s*(\d+)(?=\s*(?:남은|남았|남아))"""
+                ).find(t)?.groupValues?.get(1)?.toIntOrNull()
+
+                daysWithUnit ?: daysWithoutUnit ?: 3
             }
         }
         val expiryNearKeywords = listOf("상하는", "임박", "곧 상", "유통기한 얼마", "만료")
