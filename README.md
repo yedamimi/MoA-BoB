@@ -2,7 +2,7 @@
 
 # 🍚 MoA-BoB | 모아밥
 
-<img src="./assets/logo.png" alt="모아밥 로고" width="380" />
+<img src="./app/src/main/assets/logo.png" alt="모아밥 로고" width="480"/>
 
 ### 냉장고 속 식재료를 더 똑똑하게, 모아밥
 
