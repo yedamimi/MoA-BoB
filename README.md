@@ -450,7 +450,7 @@ python scan.py
       <a href="https://github.com/kilmj"><b>길민재</b></a>
     </td>
     <td><b>AI/ML · Database · System Integration</b></td>
-    <td>AI 인식 모델 개발 및 데이터셋 구축·전처리·관리, 모델 성능 평가·개선, <b>AI 기반 식재료 인식·입출고 시스템 공동 개발</b>, 식품 성분표 OCR 기반 알레르기 검출, Firebase DB 설계·관리 및 실시간 데이터 동기화, 웹캠·Android·Firebase 시스템 통합 및 테스트</td>
+    <td>AI 인식 모델 개발 및 데이터셋 구축·전처리·관리, 모델 성능 평가·개선, <b>AI 기반 식재료 인식·입출고 시스템 공동 개발</b>, 식품 성분표 OCR 기반 알레르겐 검출, Firebase DB 설계·관리 및 실시간 데이터 동기화, 웹캠·Android·Firebase 시스템 통합 및 테스트</td>
   </tr>
 </table>
 
