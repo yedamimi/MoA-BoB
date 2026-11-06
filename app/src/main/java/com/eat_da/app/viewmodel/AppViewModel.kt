@@ -110,6 +110,9 @@ data class AppState(
     val addedItems: List<FoodItem> = emptyList(), // 이번 세션에 추가한 항목 (오버레이 표시용)
     // ── 영수증 스캔 ─────────────────────────────────────────────────────────
     val receiptScanOpen: Boolean = false,
+    val allergenScanOpen: Boolean = false,
+    val allergenScanTargetItemId: String? = null,
+    val allergenScanTargetFoodName: String? = null,
 )
 
 // ── qty 파싱 헬퍼 (숫자/문자열 둘 다 대응) ─────────────────────────────────────
@@ -252,6 +255,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             addedDays = 0,
                             isAllergen = allergen,
                             hasRemnant = remnant,
+                            productAllergens = child.child("productAllergens")
+                                .children.mapNotNull { it.getValue(String::class.java) },
+
+                            facilityAllergens = child.child("facilityAllergens")
+                                .children.mapNotNull { it.getValue(String::class.java) },
                             freshness = (child.child("freshness").value as? Number)?.toInt(),
                             freshnessClass = child.child("freshnessClass")
                                 .getValue(String::class.java),
@@ -678,6 +686,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             location       = location,
             addedDays      = addedDays,
             isAllergen     = isAllergen,
+            productAllergens = snap.child("productAllergens")
+                .children.mapNotNull { it.getValue(String::class.java) },
+
+            facilityAllergens = snap.child("facilityAllergens")
+                .children.mapNotNull { it.getValue(String::class.java) },
         )
     }.getOrNull()
 
@@ -867,6 +880,119 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun openReceiptScan()  = _state.update { it.copy(scanSheetOpen = false, receiptScanOpen = true) }
     fun closeReceiptScan() = _state.update { it.copy(receiptScanOpen = false) }
 
+    // 알레르기 성분표 스캔
+    fun openAllergenScan() = _state.update {
+        it.copy(
+            scanSheetOpen = false,
+            allergenScanOpen = true,
+            allergenScanTargetItemId = null,
+            allergenScanTargetFoodName = null
+        )
+    }
+
+    // 재고 상세에서 특정 식재료의 성분표 스캔
+    fun openAllergenScanForFood(foodName: String) = _state.update {
+        it.copy(
+            allergenScanOpen = true,
+            allergenScanTargetItemId = null,
+            allergenScanTargetFoodName = foodName
+        )
+    }
+
+    fun closeAllergenScan() = _state.update {
+        it.copy(
+            allergenScanOpen = false,
+            allergenScanTargetItemId = null,
+            allergenScanTargetFoodName = null
+        )
+    }
+    // 같은 이름의 가공식품 재고 전체에 알레르기 정보 저장
+    fun saveProductAllergensForFood(
+        foodName: String,
+        productAllergens: List<String>,
+        facilityAllergens: List<String>
+    ) {
+        val directAllergens = productAllergens.distinct()
+        val warningAllergens = facilityAllergens.distinct()
+
+        val inventoryRef = rootDb
+            .child("MoA-BoB")
+            .child("foodInventory")
+
+        inventoryRef.get()
+            .addOnSuccessListener { snapshot ->
+
+                // 같은 이름 + 가공식품인 재고만 찾기
+                val matchingItems = snapshot.children.filter { child ->
+                    child.child("name").getValue(String::class.java) == foodName &&
+                            child.child("category").getValue(String::class.java) == FoodCategory.PROCESSED.name
+                }
+
+                if (matchingItems.isEmpty()) {
+                    _state.update {
+                        it.copy(toast = "저장할 가공식품 재고를 찾지 못했습니다.")
+                    }
+                    return@addOnSuccessListener
+                }
+
+                // 해당 이름의 모든 재고에 동일한 정보 저장
+                val updates = mutableMapOf<String, Any>()
+
+                matchingItems.forEach { item ->
+                    val itemId = item.key ?: return@forEach
+
+                    updates["$itemId/productAllergens"] = directAllergens
+                    updates["$itemId/facilityAllergens"] = warningAllergens
+                }
+
+                inventoryRef.updateChildren(updates)
+                    .addOnSuccessListener {
+
+                        _state.update { state ->
+                            state.copy(
+                                inventory = state.inventory.map { item ->
+                                    if (
+                                        item.name == foodName &&
+                                        item.category == FoodCategory.PROCESSED
+                                    ) {
+                                        item.copy(
+                                            productAllergens = directAllergens,
+                                            facilityAllergens = warningAllergens
+                                        )
+                                    } else {
+                                        item
+                                    }
+                                },
+                                openItem = state.openItem?.let { item ->
+                                    if (
+                                        item.name == foodName &&
+                                        item.category == FoodCategory.PROCESSED
+                                    ) {
+                                        item.copy(
+                                            productAllergens = directAllergens,
+                                            facilityAllergens = warningAllergens
+                                        )
+                                    } else {
+                                        item
+                                    }
+                                },
+                                toast = "${foodName} 알레르기 성분 정보가 저장되었습니다."
+                            )
+                        }
+                    }
+                    .addOnFailureListener {
+                        _state.update {
+                            it.copy(toast = "알레르기 성분 저장에 실패했습니다.")
+                        }
+                    }
+            }
+            .addOnFailureListener {
+                _state.update {
+                    it.copy(toast = "재고 정보를 불러오지 못했습니다.")
+                }
+            }
+    }
+
     // 확인 화면에서 고른 항목을 재고에 추가 (같은 이름·소비기한 재고가 있으면 수량 합침)
     fun confirmReceipt(entries: List<ReceiptEntry>) {
         val now = System.currentTimeMillis()
@@ -975,6 +1101,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
     }
+
+    fun showToast(message: String) = _state.update { it.copy(toast = message) }
 
     fun dismissToast() = _state.update { it.copy(toast = null) }
 

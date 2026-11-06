@@ -128,6 +128,7 @@ fun InventoryScreen(
     // 식재료 이름별 최근 신선도 확인 기록, 신선도 확인 시작
     freshnessChecks: Map<String, FreshnessCheck>,
     onCheckFreshness: (String) -> Unit,
+    onScanIngredients: (String) -> Unit,
     openImminentFilter: Boolean = false,
     onImminentFilterConsumed: () -> Unit = {},
 ) {
@@ -159,6 +160,9 @@ fun InventoryScreen(
             onRecipeRecommend = onRecipeRecommend,
             freshnessCheck = freshnessChecks[foodName],
             onCheckFreshness = { onCheckFreshness(foodName) },
+            onScanIngredients = {
+                onScanIngredients(foodName)
+            },
         )
 
         return
@@ -227,9 +231,18 @@ fun InventoryScreen(
                 // 같은 이름의 재고 수량 합산
                 qty = totalQtyText(items),
 
-                // 같은 이름 중 하나라도 알레르기 또는 자투리로 표시되면 대표 카드에 표시
+                // 알레르기 및 자투리 상태 합산
                 isAllergen = items.any { it.isAllergen },
-                hasRemnant = items.any { it.hasRemnant }
+                hasRemnant = items.any { it.hasRemnant },
+
+                // 같은 이름의 재고에 저장된 알레르기 정보 합산
+                productAllergens = items
+                    .flatMap { it.productAllergens }
+                    .distinct(),
+
+                facilityAllergens = items
+                    .flatMap { it.facilityAllergens }
+                    .distinct()
             )
         }
         .sortedBy { it.daysLeft() }
@@ -534,6 +547,7 @@ private fun InventoryGroupView(
     onRecipeRecommend: (String) -> Unit,
     freshnessCheck: FreshnessCheck?,
     onCheckFreshness: () -> Unit,
+    onScanIngredients: () -> Unit,
 ) {
     var showStorageGuide by remember {
         mutableStateOf(false)
@@ -666,6 +680,7 @@ private fun InventoryGroupView(
 
                     Column {
 
+                        // 첫 번째 줄: 식재료명 + 제품 알레르기 태그
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -677,32 +692,67 @@ private fun InventoryGroupView(
                                 color = colors.text
                             )
 
-                            // 등록한 알레르기에 해당하는 식재료
-                            if (foodItems.any { it.isAllergen }) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(colors.dangerSoft)
-                                        .padding(horizontal = 7.dp, vertical = 3.dp),
-                                ) {
-                                    Text(
-                                        "알레르기",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = colors.danger
-                                    )
+                            foodItems
+                                .flatMap { it.productAllergens }
+                                .distinct()
+                                .forEach { allergen ->
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(colors.dangerSoft)
+                                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = allergen,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = colors.danger
+                                        )
+                                    }
+                                }
+                        }
+
+                        // 두 번째 줄: 같은 시설 제조 알레르기 태그
+                        val facilityAllergens = foodItems
+                            .flatMap { it.facilityAllergens }
+                            .distinct()
+
+                        if (facilityAllergens.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.padding(top = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "같은 시설 제조:",
+                                    fontSize = 10.sp,
+                                    color = colors.textMuted
+                                )
+
+                                facilityAllergens.forEach { allergen ->
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(colors.warningSoft)
+                                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = allergen,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = WarningText
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        Spacer(
-                            Modifier.height(4.dp)
-                        )
-
+                        // 세 번째 줄: 총 수량
                         Text(
                             text = "총 $totalQty",
                             fontSize = 14.sp,
-                            color = colors.textMuted
+                            color = colors.textMuted,
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                 }
@@ -710,6 +760,32 @@ private fun InventoryGroupView(
 
             // ─────────────────────────────
             // 최근 확인한 신선도 + 신선도 확인
+
+            // 가공식품 성분표 스캔 버튼
+            if (foodItems.firstOrNull()?.category == FoodCategory.PROCESSED) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(colors.accent)
+                            .clickable {
+                                onScanIngredients()
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            text = "📷 성분표 스캔",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
+                    }
+                }
+            }
+
             // 같은 이름의 재고 묶음은 구분할 수 없으므로 식재료 단위로 기록
             // 신선식품(과일·채소)만 표시
             // ─────────────────────────────
@@ -1187,10 +1263,9 @@ private fun InventoryGroupItemRow(
 fun InventoryRow(
     colors: EatdaColors,
     item: FoodItem,
-    freshnessCheck: FreshnessCheck? = null,   // 이 식재료 이름의 최근 신선도 확인 기록
+    freshnessCheck: FreshnessCheck? = null,
     onClick: () -> Unit,
 ) {
-
     // 메인 목록에서는 경과도 임박과 같은 빨강으로 표시
     val tone = expiryTone(
         colors,
@@ -1203,20 +1278,24 @@ fun InventoryRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(
-                RoundedCornerShape(14.dp)
-            )
+            .clip(RoundedCornerShape(14.dp))
             .background(
-                if (colors.isColorBlind || colors.isA11y) colors.surface else InventoryWhite
+                if (colors.isColorBlind || colors.isA11y) {
+                    colors.surface
+                } else {
+                    InventoryWhite
+                }
             )
             .border(
                 1.dp,
-                if (colors.isColorBlind || colors.isA11y) colors.border else InventoryCardBorder,
+                if (colors.isColorBlind || colors.isA11y) {
+                    colors.border
+                } else {
+                    InventoryCardBorder
+                },
                 RoundedCornerShape(14.dp)
             )
-            .clickable(
-                onClick = onClick
-            )
+            .clickable(onClick = onClick)
             .padding(
                 start = 10.dp,
                 top = 10.dp,
@@ -1226,20 +1305,14 @@ fun InventoryRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-
+        // 식재료 아이콘
         Box(
             modifier = Modifier
                 .size(42.dp)
-                .clip(
-                    RoundedCornerShape(12.dp)
-                )
-                .background(
-                    Color(cat.hexColor)
-                        .copy(alpha = 0.1f)
-                ),
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(cat.hexColor).copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center,
         ) {
-
             Text(
                 foodEmoji[item.name]
                     ?: item.name.firstOrNull()?.toString()
@@ -1248,15 +1321,15 @@ fun InventoryRow(
             )
         }
 
+        // 왼쪽 정보 영역
         Column(
             modifier = Modifier.weight(1f)
         ) {
-
+            // 첫 번째 줄: 식재료명 + 실제 포함된 알레르기 성분
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-
                 Text(
                     item.name,
                     fontSize = 14.sp,
@@ -1264,38 +1337,29 @@ fun InventoryRow(
                     color = colors.text
                 )
 
-                if (item.isAllergen) {
-
+                item.productAllergens.forEach { allergen ->
                     Box(
                         modifier = Modifier
-                            .clip(
-                                RoundedCornerShape(4.dp)
-                            )
-                            .background(
-                                colors.dangerSoft
-                            )
-                            .padding(
-                                horizontal = 5.dp,
-                                vertical = 2.dp
-                            ),
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colors.dangerSoft)
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
                     ) {
-
                         Text(
-                            "알레르기",
+                            text = allergen,
                             fontSize = 9.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontWeight = FontWeight.Bold,
                             color = colors.danger
                         )
                     }
                 }
 
-                // 자투리 표시: 앱 메모리에 설정된 상태를 전체 재고목록에도 표시
+                // 자투리 표시
                 if (item.hasRemnant) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .background(RemnantBg)
-                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
                     ) {
                         Text(
                             "🥄 자투리",
@@ -1307,35 +1371,57 @@ fun InventoryRow(
                 }
             }
 
+            // 두 번째 줄: 같은 시설에서 제조된 알레르기 성분
+            if (item.facilityAllergens.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "같은 시설 제조:",
+                        fontSize = 9.sp,
+                        color = colors.textMuted
+                    )
+
+                    item.facilityAllergens.forEach { allergen ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(colors.warningSoft)
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = allergen,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = WarningText
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 세 번째 줄: 수량
             Text(
                 item.qty,
                 fontSize = 11.sp,
                 color = colors.textMuted,
-                modifier = Modifier.padding(
-                    top = 2.dp
-                )
+                modifier = Modifier.padding(top = 3.dp)
             )
         }
 
+        // 오른쪽 정보 영역: 유통기한 및 신선도
         Column(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-
             Box(
                 modifier = Modifier
-                    .clip(
-                        RoundedCornerShape(6.dp)
-                    )
-                    .background(
-                        tone.first
-                    )
-                    .padding(
-                        horizontal = 8.dp,
-                        vertical = 4.dp
-                    ),
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(tone.first)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-
                 Text(
                     item.formatExpiry(),
                     fontSize = 11.sp,
@@ -1344,7 +1430,6 @@ fun InventoryRow(
                 )
             }
 
-
             if (freshnessCheck != null && item.category.supportsFreshnessCheck) {
                 Text(
                     text = freshnessCheck.summaryText(),
@@ -1352,7 +1437,6 @@ fun InventoryRow(
                     color = colors.textFaint,
                 )
             }
-
         }
     }
 }

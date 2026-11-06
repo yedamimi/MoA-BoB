@@ -29,6 +29,10 @@ data class FoodItem(
     val addedDays: Int,
     val isAllergen: Boolean = false,
     val hasRemnant: Boolean = false,
+
+    // 제품 성분표 스캔 결과
+    val productAllergens: List<String> = emptyList(),
+    val facilityAllergens: List<String> = emptyList(),
 ) {
     fun daysLeft(today: LocalDate = LocalDate.now()): Int =
         (expiry.toEpochDay() - today.toEpochDay()).toInt()

@@ -197,6 +197,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 sheetState = scanSheetState,
                 onPick = vm::startScan,
                 onPickReceipt = vm::openReceiptScan,
+                onPickAllergen = vm::openAllergenScan,
                 onDismiss = vm::closeScanSheet,
             )
         }
@@ -220,6 +221,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                 onDelete = {
                     vm.deleteInventoryItem(item.id)
                 },
+
             )
         }
 
@@ -238,6 +240,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                     TtsService.stop()
                     vm.closeVoice()
                 },
+                a11yMode = settings.a11yMode,
             )
         }
 
@@ -309,6 +312,7 @@ private fun AppScreenContent(
                     onSelectFood = vm::openInventoryGroup,
                     freshnessChecks = state.freshnessChecks,
                     onCheckFreshness = vm::startFreshCheck,
+                    onScanIngredients = vm::openAllergenScanForFood,
                     onOpenItem = vm::openItem,
                     onRecipeRecommend = { foodName ->
                         vm.openRecipeRecommendations(foodName)
@@ -413,6 +417,35 @@ private fun AppScreenContent(
                 colors = colors,
                 onClose = vm::closeReceiptScan,
                 onConfirm = vm::confirmReceipt,
+            )
+        }
+
+        // 알레르기 성분표 스캔 (제품 뒷면 성분표 OCR)
+        AnimatedVisibility(
+            visible = state.allergenScanOpen,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        ) {
+            AllergenScanView(
+                colors = colors,
+                allergens = state.allergens,
+                ttsEnabled = state.settings.ttsEnabled,
+                hapticEnabled = state.settings.hapticEnabled,
+                onClose = vm::closeAllergenScan,
+                onToast = vm::showToast,
+                onGoMyPage = {
+                    vm.closeAllergenScan()
+                    vm.navigate(Screen.MYPAGE)
+                },
+                onScanComplete = { direct, facility ->
+                    state.allergenScanTargetFoodName?.let { foodName ->
+                        vm.saveProductAllergensForFood(
+                            foodName = foodName,
+                            productAllergens = direct,
+                            facilityAllergens = facility
+                        )
+                    }
+                },
             )
         }
 

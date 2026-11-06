@@ -115,22 +115,9 @@ fun ItemDetailSheet(
                             color = colors.text
                         )
 
-                        if (item.isAllergen) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(colors.dangerSoft)
-                                    .padding(horizontal = 7.dp, vertical = 3.dp),
-                            ) {
-                                Text(
-                                    "알레르기",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = colors.danger
-                                )
-                            }
-                        }
                     }
+
+
 
                     // 카테고리 · 개수 + 개수 수정 버튼 + 자투리 칩
                     Row(
@@ -214,6 +201,10 @@ fun ItemDetailSheet(
                     }
                 }
             }
+
+
+
+
 
             // ── 유통기한 카드 ─────────────────────────────────────────────────
             Column(

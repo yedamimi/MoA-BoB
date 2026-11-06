@@ -2,4 +2,5 @@
 <!-- 영수증 스캔: 카메라 앱이 원본 해상도 사진을 저장할 위치 (앱 캐시) -->
 <paths>
     <cache-path name="receipts" path="receipts/" />
+    <cache-path name="allergen_labels" path="allergen-labels/" />
 </paths>

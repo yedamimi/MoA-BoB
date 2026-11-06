@@ -29,6 +29,7 @@ fun ScanBottomSheet(
     sheetState: SheetState,
     onPick: (ScanMode) -> Unit,
     onPickReceipt: () -> Unit,
+    onPickAllergen: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -128,6 +129,31 @@ fun ScanBottomSheet(
                     Text("영수증 스캔", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
                     Text(
                         "장 본 영수증으로 한 번에 입고",
+                        fontSize = 11.sp,
+                        color = colors.textMuted,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+                EatdaIcon(EatdaIcons.ChevronRight, tint = colors.textMuted, size = 18.dp)
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                    .clickable(onClick = onPickAllergen)
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("⚠️", fontSize = 25.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("성분표 스캔", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
+                    Text(
+                        "알레르기 유발 성분 확인 · 제품 뒷면 성분표를 찍어보세요",
                         fontSize = 11.sp,
                         color = colors.textMuted,
                         fontWeight = FontWeight.Medium,

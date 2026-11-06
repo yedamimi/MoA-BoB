@@ -44,6 +44,7 @@ private enum class VoicePhase {
 @Composable
 fun VoiceOverlaySheet(
     colors: EatdaColors,
+    a11yMode: Boolean = false,
     sheetState: SheetState,
     inventory: List<FoodItem>,
     pendingDeleteItem: FoodItem?,
@@ -179,8 +180,8 @@ fun VoiceOverlaySheet(
     DisposableEffect(Unit) { onDispose { SttService.stop() } }
 
     // ── UI ───────────────────────────────────────────────────────────────────
-    val sheetBg = if (colors == ColorBlindEatdaColors) colors.bg else Color.White
-    val sheetBorder = if (colors == ColorBlindEatdaColors) colors.border else Color(0xFFE0E8E1)
+    val sheetBg = if (colors == DefaultEatdaColors) Color.White else colors.bg
+    val sheetBorder = if (colors == DefaultEatdaColors) Color(0xFFE0E8E1) else colors.border
     ModalBottomSheet(
         onDismissRequest = { SttService.stop(); onDismiss() },
         sheetState       = sheetState,
@@ -190,8 +191,8 @@ fun VoiceOverlaySheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp),
+                .padding(horizontal = if (a11yMode) 24.dp else 20.dp)
+                .padding(bottom = if (a11yMode) 40.dp else 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
@@ -222,9 +223,9 @@ fun VoiceOverlaySheet(
                                 }
 
                             }
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                            .padding(horizontal = if (a11yMode) 20.dp else 14.dp, vertical = if (a11yMode) 13.dp else 7.dp),
                     ) {
-                        Text("이전", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                        Text("이전", fontSize = if (a11yMode) 18.sp else 13.sp, fontWeight = FontWeight.Bold, color = colors.text)
                     }
                 }
 
@@ -242,7 +243,7 @@ fun VoiceOverlaySheet(
                         ) {
                             Text(
                                 "📦 재고 추가 모드",
-                                fontSize   = 11.sp,
+                                fontSize   = if (a11yMode) 15.sp else 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color      = colors.accent,
                             )
@@ -258,7 +259,7 @@ fun VoiceOverlaySheet(
                             VoicePhase.SPEAKING,
                             VoicePhase.SPEAKING_AWAIT -> "응답 중..."
                         },
-                        fontSize   = 15.sp,
+                        fontSize   = if (a11yMode) 21.sp else 15.sp,
                         color      = colors.textMuted,
                         fontWeight = FontWeight.Medium,
                     )
@@ -272,9 +273,9 @@ fun VoiceOverlaySheet(
                         .background(if (colors == ColorBlindEatdaColors) colors.surfaceAlt else Color(0xFFF4F7F4))
                         .border(1.dp, sheetBorder, RoundedCornerShape(999.dp))
                         .clickable { SttService.stop(); onDismiss() }
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                        .padding(horizontal = if (a11yMode) 20.dp else 14.dp, vertical = if (a11yMode) 13.dp else 7.dp),
                 ) {
-                    Text("끝내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                    Text("끝내기", fontSize = if (a11yMode) 18.sp else 13.sp, fontWeight = FontWeight.Bold, color = colors.text)
                 }
             }
 
@@ -283,6 +284,7 @@ fun VoiceOverlaySheet(
                 MicButton(
                     colors = colors,
                     phase  = phase,
+                    a11yMode = a11yMode,
                     onClick = {
                         if (!hasMicPerm) {
                             permLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -317,7 +319,7 @@ fun VoiceOverlaySheet(
                 ) {
                     Text(
                         "추가된 항목 (${addedItems.size}개)",
-                        fontSize   = 11.sp,
+                        fontSize   = if (a11yMode) 15.sp else 11.sp,
                         color      = colors.textFaint,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -327,17 +329,17 @@ fun VoiceOverlaySheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Text("✅", fontSize = 13.sp)
+                            Text("✅", fontSize = if (a11yMode) 18.sp else 13.sp)
                             Text(
                                 item.name,
-                                fontSize   = 13.sp,
+                                fontSize   = if (a11yMode) 18.sp else 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 color      = colors.text,
                                 modifier   = Modifier.weight(1f),
                             )
                             Text(
                                 "${item.qty} · ${item.expiry?.let { "${it.monthValue}/${it.dayOfMonth}" } ?: "-"}",
-                                fontSize = 12.sp,
+                                fontSize = if (a11yMode) 16.sp else 12.sp,
                                 color    = colors.textMuted,
                             )
                         }
@@ -353,14 +355,14 @@ fun VoiceOverlaySheet(
                 ) {
                     Box(
                         modifier = Modifier
-                            .widthIn(max = 280.dp)
+                            .widthIn(max = if (a11yMode) 320.dp else 280.dp)
                             .clip(RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp))
                             .background(colors.accent)
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                            .padding(horizontal = if (a11yMode) 18.dp else 14.dp, vertical = if (a11yMode) 15.dp else 10.dp),
                     ) {
                         Text(
                             "\"$heardText\"",
-                            fontSize   = 14.sp,
+                            fontSize   = if (a11yMode) 20.sp else 14.sp,
                             color      = Color.White,
                             fontWeight = FontWeight.Medium,
                         )
@@ -381,19 +383,19 @@ fun VoiceOverlaySheet(
                             .clip(CircleShape)
                             .background(colors.surfaceAlt),
                         contentAlignment = Alignment.Center,
-                    ) { Text("🤖", fontSize = 16.sp) }
+                    ) { Text("🤖", fontSize = if (a11yMode) 22.sp else 16.sp) }
                     Spacer(Modifier.width(8.dp))
                     Box(
                         modifier = Modifier
-                            .widthIn(max = 260.dp)
+                            .widthIn(max = if (a11yMode) 300.dp else 260.dp)
                             .clip(RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp))
                             .background(colors.surface)
                             .border(1.dp, colors.border, RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp))
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                            .padding(horizontal = if (a11yMode) 18.dp else 14.dp, vertical = if (a11yMode) 15.dp else 10.dp),
                     ) {
                         Text(
                             lastVoiceResponse,
-                            fontSize   = 14.sp,
+                            fontSize   = if (a11yMode) 20.sp else 14.sp,
                             color      = colors.text,
                             lineHeight = 20.sp,
                         )
@@ -413,18 +415,18 @@ fun VoiceOverlaySheet(
                     verticalAlignment     = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(foodEmoji[item.name] ?: "🍽️", fontSize = 28.sp)
+                    Text(foodEmoji[item.name] ?: "🍽️", fontSize = if (a11yMode) 36.sp else 28.sp)
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             if (pendingDeleteQty != null) "${item.name} ${pendingDeleteQty}개 삭제할까요?"
                             else "${item.name} 삭제할까요?",
-                            fontSize   = 14.sp,
+                            fontSize   = if (a11yMode) 20.sp else 14.sp,
                             fontWeight = FontWeight.Bold,
                             color      = colors.danger,
                         )
                         Text(
                             "\"응\" 또는 \"아니\" 라고 말하세요",
-                            fontSize = 11.sp,
+                            fontSize = if (a11yMode) 16.sp else 11.sp,
                             color    = colors.textMuted,
                             modifier = Modifier.padding(top = 2.dp),
                         )
@@ -437,9 +439,9 @@ fun VoiceOverlaySheet(
             // 일반 모드: 처음 열었을 때만 표시
             if (pendingDeleteItem == null) {
                 if (isAddMode) {
-                    AddModeHintList(colors)
+                    AddModeHintList(colors, a11yMode)
                 } else if (!hasResponded && heardText.isEmpty()) {
-                    VoiceHintList(colors)
+                    VoiceHintList(colors, a11yMode)
                 }
             }
         }
@@ -449,7 +451,7 @@ fun VoiceOverlaySheet(
 // ── 마이크 버튼 ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun MicButton(colors: EatdaColors, phase: VoicePhase, onClick: () -> Unit) {
+private fun MicButton(colors: EatdaColors, phase: VoicePhase, a11yMode: Boolean, onClick: () -> Unit) {
     val isListening = phase == VoicePhase.LISTENING
 
     val pulse by rememberInfiniteTransition(label = "micPulse").animateFloat(
@@ -466,7 +468,7 @@ private fun MicButton(colors: EatdaColors, phase: VoicePhase, onClick: () -> Uni
         if (isListening) {
             Box(
                 modifier = Modifier
-                    .size(96.dp)
+                    .size(if (a11yMode) 128.dp else 96.dp)
                     .scale(pulse)
                     .clip(CircleShape)
                     .background(colors.accent.copy(alpha = 0.13f)),
@@ -474,14 +476,14 @@ private fun MicButton(colors: EatdaColors, phase: VoicePhase, onClick: () -> Uni
         }
         Box(
             modifier = Modifier
-                .size(76.dp)
+                .size(if (a11yMode) 104.dp else 76.dp)
                 .clip(CircleShape)
                 .background(if (isListening) colors.accent else if (colors == ColorBlindEatdaColors) colors.surface else Color(0xFFEAF3EC))
                 .border(2.dp, if (isListening) colors.accent else colors.accent.copy(alpha = 0.25f), CircleShape)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Canvas(modifier = Modifier.size(30.dp)) {
+            Canvas(modifier = Modifier.size(if (a11yMode) 42.dp else 30.dp)) {
                 val ink = if (isListening) Color.White else colors.accent
                 val w = size.width
                 val h = size.height
@@ -507,7 +509,7 @@ private fun MicButton(colors: EatdaColors, phase: VoicePhase, onClick: () -> Uni
 // ── 일반 힌트 목록 ────────────────────────────────────────────────────────────
 
 @Composable
-private fun VoiceHintList(colors: EatdaColors) {
+private fun VoiceHintList(colors: EatdaColors, a11yMode: Boolean) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -527,7 +529,7 @@ private fun VoiceHintList(colors: EatdaColors) {
             "두부 삭제해줘",
             "끝  (종료)",
         ).forEach { hint ->
-            HintRow(hint, colors)
+            HintRow(hint, colors, a11yMode)
         }
     }
 }
@@ -535,7 +537,7 @@ private fun VoiceHintList(colors: EatdaColors) {
 // ── 추가 모드 힌트 목록 ───────────────────────────────────────────────────────
 
 @Composable
-private fun AddModeHintList(colors: EatdaColors) {
+private fun AddModeHintList(colors: EatdaColors, a11yMode: Boolean) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -554,24 +556,24 @@ private fun AddModeHintList(colors: EatdaColors) {
             "이전  (이전 화면으로)",
             "끝  (추가 모드 종료)",
         ).forEach { hint ->
-            HintRow(hint, colors)
+            HintRow(hint, colors, a11yMode)
         }
     }
 }
 
 @Composable
-private fun HintRow(hint: String, colors: EatdaColors) {
+private fun HintRow(hint: String, colors: EatdaColors, a11yMode: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(13.dp))
-            .background(if (colors == ColorBlindEatdaColors) colors.surface else Color.White)
-            .border(1.dp, if (colors == ColorBlindEatdaColors) colors.border else Color(0xFFE0E8E1), RoundedCornerShape(13.dp))
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+            .background(if (colors == DefaultEatdaColors) Color.White else colors.surface)
+            .border(1.dp, if (colors == DefaultEatdaColors) Color(0xFFE0E8E1) else colors.border, RoundedCornerShape(13.dp))
+            .padding(horizontal = 14.dp, vertical = if (a11yMode) 16.dp else 11.dp),
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("🎤", fontSize = 13.sp)
-        Text(hint, fontSize = 14.sp, color = colors.textMuted)
+        Text("🎤", fontSize = if (a11yMode) 18.sp else 13.sp)
+        Text(hint, fontSize = if (a11yMode) 18.sp else 14.sp, color = colors.textMuted)
     }
 }
