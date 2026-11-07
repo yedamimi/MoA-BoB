@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -13,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -275,10 +277,51 @@ private fun AppScreenContent(
 ) {
     var openImminentFilter by remember { mutableStateOf(false) }
     var openExpiredFilter by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
+
+    val swipeThreshold = with(LocalDensity.current) { 80.dp.toPx() }
+    val tabIndex = MAIN_TABS.indexOf(state.screen)
+    // 재고 그룹 화면(식재료 묶음 상세)이나 스캔 화면이 열려 있으면 스와이프로 탭이 바뀌지 않도록
+    val swipeEnabled = tabIndex >= 0 &&
+            !(state.screen == Screen.INVENTORY && state.inventoryGroupName != null) &&
+            state.activeScanMode == null && state.phoneScanMode == null &&
+            !state.receiptScanOpen && !state.allergenScanOpen
+
+    Box(
+        modifier = modifier.pointerInput(state.screen, swipeEnabled) {
+            if (!swipeEnabled) return@pointerInput
+            var total = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { total = 0f },
+                onDragEnd = {
+                    val target = when {
+                        total < -swipeThreshold -> MAIN_TABS.getOrNull(tabIndex + 1) // 왼쪽으로 밀기 → 다음 탭
+                        total > swipeThreshold  -> MAIN_TABS.getOrNull(tabIndex - 1) // 오른쪽으로 밀기 → 이전 탭
+                        else -> null
+                    }
+                    when (target) {
+                        null -> Unit
+                        Screen.RECIPES -> vm.openRecipesFromNavigation()
+                        else -> vm.navigate(target)
+                    }
+                },
+                onHorizontalDrag = { _, dragAmount -> total += dragAmount },
+            )
+        }
+    ) {
         AnimatedContent(
             targetState = state.screen,
-            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+            transitionSpec = {
+                val from = MAIN_TABS.indexOf(initialState)
+                val to = MAIN_TABS.indexOf(targetState)
+                if (from >= 0 && to >= 0 && from != to) {
+                    // 탭끼리 이동: 탭 순서 방향으로 밀려나는 전환
+                    val dir = if (to > from) 1 else -1
+                    (slideInHorizontally(tween(250)) { it * dir } + fadeIn(tween(250))) togetherWith
+                            (slideOutHorizontally(tween(250)) { -it * dir } + fadeOut(tween(250)))
+                } else {
+                    fadeIn(tween(200)) togetherWith fadeOut(tween(200))
+                }
+            },
             label = "screen",
         ) { screen ->
             when (screen) {
@@ -535,3 +578,6 @@ private fun TtsPlayingBar(onStop: () -> Unit) {
         EatdaIcon(EatdaIcons.Close, tint = Color.White.copy(alpha = 0.6f), size = 13.dp)
     }
 }
+
+// 좌우 스와이프로 오갈 수 있는 메인 탭 (하단 내비 순서)
+private val MAIN_TABS = listOf(Screen.HOME, Screen.INVENTORY, Screen.RECIPES, Screen.SETTINGS)

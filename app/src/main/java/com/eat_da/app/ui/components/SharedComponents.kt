@@ -164,7 +164,7 @@ fun EatdaBottomNav(
     onScan: () -> Unit,
 ) {
     val figmaStyle = !colors.isColorBlind && !colors.isA11y
-    val borderColor = if (figmaStyle) Color(0xFFE6EAE6) else colors.border
+    val borderColor = if (figmaStyle) Color(0xFFBECFC2) else colors.border
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -209,7 +209,7 @@ fun EatdaBottomNav(
             }
             Text(
                 "촬영",
-                fontSize = if (sizes.isA11y) 11.sp else 10.sp,
+                fontSize = if (sizes.isA11y) 17.sp else 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = colors.accent,
             )
@@ -228,12 +228,13 @@ private fun RowScope.NavTab(
     onNav: (Screen) -> Unit,
 ) {
     val active = current == screen
-    val tint = if (active) colors.accent else if (!colors.isColorBlind && !colors.isA11y) Color(0xFF718077) else colors.textMuted
+    val tint = if (active) colors.accent else if (!colors.isColorBlind && !colors.isA11y) Color(0xFF435B4D) else colors.textMuted
     Column(
         modifier = Modifier
             .weight(1f)
             .clickable { onNav(screen) }
-            .padding(horizontal = 4.dp, vertical = 10.dp)
+            .heightIn(min = 62.dp)
+            .padding(horizontal = 4.dp, vertical = 9.dp)
             .semantics { contentDescription = "$label${if (active) ", 현재 화면" else ""}"; role = Role.Tab },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -241,7 +242,7 @@ private fun RowScope.NavTab(
         if (screen == Screen.SETTINGS) {
             // 단순한 선형 톱니바퀴: 기존 설정 탭 동작과 선택 색상은 그대로 사용
             androidx.compose.foundation.Canvas(
-                modifier = Modifier.size(if (sizes.isA11y) 24.dp else 20.dp)
+                modifier = Modifier.size(if (sizes.isA11y) 26.dp else 23.dp)
             ) {
                 val cx = size.width / 2f
                 val cy = size.height / 2f
@@ -274,12 +275,12 @@ private fun RowScope.NavTab(
                 )
             }
         } else {
-            EatdaIcon(icon, tint = tint, size = if (sizes.isA11y) 24.dp else 20.dp)
+            EatdaIcon(icon, tint = tint, size = if (sizes.isA11y) 26.dp else 23.dp)
         }
         Text(
             label,
-            fontSize = if (sizes.isA11y) 11.sp else 10.sp,
-            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+            fontSize = if (sizes.isA11y) 17.sp else 14.sp,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
             color = tint,
         )
     }
@@ -305,13 +306,13 @@ fun SectionHeader(
         Column {
             Text(title, fontSize = if (sizes.isA11y) 17.sp else 15.sp, fontWeight = FontWeight.Bold, color = colors.text)
             if (sub != null) {
-                Text(sub, fontSize = 11.sp, color = colors.textMuted, modifier = Modifier.padding(top = 2.dp))
+                Text(sub, fontSize = 13.sp, color = colors.textMuted, modifier = Modifier.padding(top = 2.dp))
             }
         }
         if (onMore != null) {
             Text(
                 "전체보기 ›",
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textMuted,
                 modifier = Modifier

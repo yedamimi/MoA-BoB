@@ -35,6 +35,10 @@ fun SettingsScreen(
     onUpdateSettings: (AppSettings) -> Unit,
     onGoMyPage: () -> Unit = {},
 ) {
+    // 일반 모드: 저시력 사용자를 위해 제목/설명 대비를 높임.
+    // 고대비·색각 보정 모드에서는 기존 팔레트 유지.
+    val readableText = if (settings.a11yMode || settings.colorBlindMode) colors.text else Color(0xFF171717)
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(
             if (!settings.a11yMode && !settings.colorBlindMode) Color.White else colors.bg
@@ -42,7 +46,7 @@ fun SettingsScreen(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
     ) {
         item {
-            Text("설정", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = colors.text, modifier = Modifier.padding(horizontal = 4.dp, vertical = 20.dp))
+            Text("설정", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = readableText, modifier = Modifier.padding(horizontal = 4.dp, vertical = 20.dp))
         }
 
         item {
@@ -193,12 +197,13 @@ fun SettingsScreen(
 
 @Composable
 private fun SettingsGroup(colors: EatdaColors, title: String, content: @Composable ColumnScope.() -> Unit) {
+    val labelColor = if (colors.isA11y || colors.isColorBlind) colors.text else Color(0xFF171717)
     Text(
         title.uppercase(),
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.02.sp,
-        color = colors.textMuted,
+        color = labelColor,
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp),
     )
     Column(
@@ -223,6 +228,8 @@ private fun SettingsRow(
     onClick: (() -> Unit)? = null,
     right: @Composable () -> Unit,
 ) {
+    val labelColor = if (colors.isA11y || colors.isColorBlind) colors.text else Color(0xFF171717)
+    val detailColor = if (colors.isA11y || colors.isColorBlind) colors.textMuted else Color(0xFF333333)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -238,17 +245,17 @@ private fun SettingsRow(
                 .background(if (accent) colors.accentSoft else colors.surfaceAlt),
             contentAlignment = Alignment.Center,
         ) {
-            EatdaIcon(icon, tint = if (accent) colors.accentDeep else colors.textMuted, size = 18.dp)
+            EatdaIcon(icon, tint = if (accent) colors.accentDeep else detailColor, size = 18.dp)
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 label,
-                fontSize = if (sizes.isA11y) 16.sp else 14.sp,
+                fontSize = if (sizes.isA11y) 18.sp else 16.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = colors.text,
+                color = labelColor,
             )
             if (sub != null) {
-                Text(sub, fontSize = 12.sp, color = colors.textMuted, modifier = Modifier.padding(top = 1.dp))
+                Text(sub, fontSize = if (sizes.isA11y) 16.sp else 14.sp, color = detailColor, modifier = Modifier.padding(top = 1.dp))
             }
         }
         right()

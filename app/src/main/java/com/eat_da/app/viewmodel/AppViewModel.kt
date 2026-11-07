@@ -885,13 +885,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── 영수증 스캔 ─────────────────────────────────────────────────────────
 
-    fun openReceiptScan()  = _state.update { it.copy(scanSheetOpen = false, receiptScanOpen = true) }
+    fun openReceiptScan() = _state.update {
+        it.copy(
+            scanSheetOpen = false,
+            allergenScanOpen = false,
+            allergenScanTargetItemId = null,
+            allergenScanTargetFoodName = null,
+            receiptScanOpen = true
+        )
+    }
     fun closeReceiptScan() = _state.update { it.copy(receiptScanOpen = false) }
 
     // 알레르기 성분표 스캔
     fun openAllergenScan() = _state.update {
         it.copy(
             scanSheetOpen = false,
+            receiptScanOpen = false,
             allergenScanOpen = true,
             allergenScanTargetItemId = null,
             allergenScanTargetFoodName = null
@@ -901,6 +910,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // 재고 상세에서 특정 식재료의 성분표 스캔
     fun openAllergenScanForFood(foodName: String) = _state.update {
         it.copy(
+            receiptScanOpen = false,
             allergenScanOpen = true,
             allergenScanTargetItemId = null,
             allergenScanTargetFoodName = foodName
