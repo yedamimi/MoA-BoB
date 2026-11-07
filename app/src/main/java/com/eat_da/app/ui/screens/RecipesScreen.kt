@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eatda.app.data.foodEmoji
+import com.eatda.app.data.ingredientKey
 import com.eatda.app.data.recommendRecipes
 import com.eatda.app.data.model.ExpiryStatus
 import com.eatda.app.data.model.FoodItem
@@ -32,18 +33,6 @@ import com.eatda.app.ui.components.*
 import com.eatda.app.ui.theme.*
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
-
-// ─────────────────────────────────────
-// 재료 수량 제거용 Regex
-//
-// 기존에는 재료를 비교할 때마다
-// Regex 객체를 새로 생성했음.
-// 이제 파일에서 한 번만 생성하여 재사용.
-// ─────────────────────────────────────
-
-private val INGREDIENT_QUANTITY_REGEX = Regex(
-    """\(?\d+(?:\.\d+)?(?:/\d+)?\s*(?:kg|g|mg|ml|l|개|모|팩|봉|장|대|통|구|병|캔|컵|인분)\)?$"""
-)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -70,28 +59,14 @@ fun RecipesScreen(
     val selectedCategory = remember { mutableStateOf(0) }
 
     // ─────────────────────────────
-    // 재료명 정규화
-    //
-    // "연어", " 연어 ", "연 어"처럼
-    // 불필요한 공백 차이 때문에
-    // 재료 매칭이 실패하지 않도록 처리
-    // ─────────────────────────────
-
-    fun normalizeIngredient(name: String): String {
-        return name
-            .trim()
-            .replace(" ", "")
-            .replace("　", "")
-    }
-
-    // ─────────────────────────────
     // 레시피 재료 ↔ 실제 재고 재료 매칭
     //
     // 예:
-    // 레시피: "연어 200g"
-    // 재고:   "연어"
+    // 레시피: "연어 200g", "브로콜리 1/2송이", "소금 약간"
+    // 재고:   "연어", "브로콜리", "소금"
     //
     // → 같은 재료로 판단
+    // 추천 순서(recommendRecipes)·홈 화면과 같은 기준인 ingredientKey()를 사용
     // ─────────────────────────────
 
     fun isIngredientMatched(
@@ -99,22 +74,8 @@ fun RecipesScreen(
         inventoryIngredient: String
     ): Boolean {
 
-        fun removeQuantity(name: String): String {
-            return name
-                .replace(
-                    INGREDIENT_QUANTITY_REGEX,
-                    ""
-                )
-                .trim()
-        }
-
-        val recipeName = removeQuantity(
-            normalizeIngredient(recipeIngredient)
-        )
-
-        val inventoryName = removeQuantity(
-            normalizeIngredient(inventoryIngredient)
-        )
+        val recipeName = ingredientKey(recipeIngredient)
+        val inventoryName = ingredientKey(inventoryIngredient)
 
         if (recipeName.isBlank() || inventoryName.isBlank()) {
             return false

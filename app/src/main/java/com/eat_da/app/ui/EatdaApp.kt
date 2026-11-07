@@ -187,7 +187,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
             }
 
             // 음성 어시스턴트 FAB — 스캔/음성 오버레이 열려있을 때는 숨김
-            if (!state.voiceOverlayOpen && state.activeScanMode == null && !state.receiptScanOpen) {
+            if (!state.voiceOverlayOpen && state.activeScanMode == null && !state.receiptScanOpen && !state.allergenScanOpen) {
                 VoiceFab(
                     colors   = colors,
                     modifier = Modifier

@@ -5,7 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -326,16 +326,14 @@ fun RecipeDetailScreen(
 
         } else {
 
-            items(
+            // 같은 문장의 단계가 있어도 번호가 겹치지 않도록 순서(index)로 번호 매김
+            itemsIndexed(
                 recipe.cookingSteps
-            ) { step ->
-
-                val index =
-                    recipe.cookingSteps.indexOf(step) + 1
+            ) { index, step ->
 
                 CookingStep(
                     colors = colors,
-                    number = index,
+                    number = index + 1,
                     text = step
                 )
             }

@@ -47,7 +47,9 @@ fun NotificationsScreen(
             )
         }
 
-        if (notifications.isEmpty()) {
+        // 화면에는 긴급 알림만 보여주므로, 긴급 알림이 없을 때 안내를 표시
+        // (긴급하지 않은 알림만 있을 때 빈 "긴급 알림" 제목만 남지 않도록)
+        if (urgent.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(top = 60.dp),

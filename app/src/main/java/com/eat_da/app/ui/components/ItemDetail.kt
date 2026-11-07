@@ -96,7 +96,7 @@ fun ItemDetailSheet(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        foodEmoji[item.name] ?: item.name.first().toString(),
+                        foodEmoji[item.name] ?: item.name.firstOrNull()?.toString() ?: "?",
                         fontSize = 32.sp
                     )
                 }

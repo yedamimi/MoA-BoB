@@ -24,6 +24,7 @@ import java.time.format.DateTimeFormatter
 import androidx.lifecycle.viewModelScope
 import com.eatda.app.data.api.RecipeApiService
 import kotlinx.coroutines.launch
+import com.eatda.app.data.CATEGORY_OVERRIDES
 import com.eatda.app.data.FoodCategoryMapper
 import com.eatda.app.data.ReceiptEntry
 import com.eatda.app.util.parseQty
@@ -222,8 +223,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             .getValue(String::class.java)
                             ?: return@runCatching null
 
-                        val catStr = child.child("category")
+                        val storedCatStr = child.child("category")
                             .getValue(String::class.java) ?: "GRAIN"
+
+                        // 이름으로 카테고리가 정해진 식품(젤리·초콜릿·즉석밥)은 그 값으로 고정
+                        // 저장된 값이 다르면 Firebase도 바로잡아, 성분표 저장 등이 같은 카테고리를 보도록 함
+                        val catStr = CATEGORY_OVERRIDES[name]?.name ?: storedCatStr
+                        if (catStr != storedCatStr) {
+                            child.ref.child("category").setValue(catStr)
+                        }
 
                         val expiryStr = child.child("expiry")
                             .getValue(String::class.java)

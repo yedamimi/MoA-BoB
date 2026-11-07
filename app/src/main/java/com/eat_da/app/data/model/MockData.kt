@@ -261,6 +261,28 @@ val foodEmoji: Map<String, String> = mapOf(
     "피자" to "🍕",
     "도넛" to "🍩",
     "케이크" to "🎂",
+    // 추가
+    "방울토마토" to "🍅",
+    "포도" to "🍇",
+    "젤리" to "🍬",
+    "우설" to "🥩",
+    "딸기우유" to "🥛",
+    "딸기 우유" to "🥛",
+    "호박" to "🎃",
+    "초콜릿" to "🍫",
+    "애호박" to "🥒",
+    "귤" to "🍊",
+    "쌈장" to "🥫",
+    "라면" to "🍜",
+    "즉석밥" to "🍚",
+)
+
+// 이름으로 카테고리를 고정하는 식품
+// 재고·영수증·음성·마켓 등 어떤 경로로 들어와도 이 카테고리로 표시하고 저장
+val CATEGORY_OVERRIDES: Map<String, FoodCategory> = mapOf(
+    "젤리" to FoodCategory.PROCESSED,
+    "초콜릿" to FoodCategory.PROCESSED,
+    "즉석밥" to FoodCategory.PROCESSED,
 )
 
 fun storageGuide(name: String): String = when (name) {
@@ -374,7 +396,7 @@ private val INGREDIENT_QUANTITY_REGEX = Regex(
 // 공백·수량을 제거해 재료 비교용 키로 변환
 //
 // 냉장고 재료와 레시피 재료는 이 키가 정확히 같을 때만 매칭으로 봄
-private fun ingredientKey(value: String): String =
+fun ingredientKey(value: String): String =
     INGREDIENT_QUANTITY_REGEX
         .replace(
             value

@@ -17,7 +17,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -30,6 +32,11 @@ import com.eatda.app.ui.theme.*
 import com.eatda.app.util.Household
 import com.eatda.app.util.HouseholdManager
 import com.eatda.app.util.HouseholdMember
+import kotlinx.coroutines.delay
+
+// 만들기·참여 요청 후 응답이 없으면 버튼을 다시 누를 수 있게 되돌리는 시간
+// (실패하면 토스트만 오고 화면으로 결과가 돌아오지 않으므로)
+private const val HOUSEHOLD_REQUEST_TIMEOUT_MS = 4_000L
 
 @Composable
 fun HouseholdScreen(
@@ -136,6 +143,15 @@ private fun NoHouseholdContent(
     var myName  by remember { mutableStateOf(savedName) }
     var input   by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
+
+    // 성공하면 가입 화면으로 바뀌어 이 화면이 사라지고,
+    // 실패하면(잘못된 코드 등) 토스트만 뜨므로 일정 시간 뒤 버튼을 다시 활성화
+    LaunchedEffect(loading) {
+        if (loading) {
+            delay(HOUSEHOLD_REQUEST_TIMEOUT_MS)
+            loading = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -272,7 +288,16 @@ private fun NoHouseholdContent(
 @Composable
 private fun HouseholdInfoCard(colors: EatdaColors, household: Household) {
     val context    = LocalContext.current
+    val clipboard  = LocalClipboardManager.current
     var codeCopied by remember { mutableStateOf(false) }
+
+    // "복사됨 ✓" 표시는 잠시 뒤 원래대로
+    LaunchedEffect(codeCopied) {
+        if (codeCopied) {
+            delay(2_000)
+            codeCopied = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -321,7 +346,11 @@ private fun HouseholdInfoCard(colors: EatdaColors, household: Household) {
                     modifier = Modifier
                         .clip(RoundedCornerShape(7.dp))
                         .background(if (codeCopied) colors.accentSoft else colors.accent)
-                        .clickable { codeCopied = true }
+                        .clickable {
+                            // 화면 표시용 "ABC – 123"이 아니라 실제 코드 "ABC123"을 복사
+                            clipboard.setText(AnnotatedString(household.inviteCode))
+                            codeCopied = true
+                        }
                         .padding(horizontal = 10.dp, vertical = 5.dp),
                 ) {
                     Text(

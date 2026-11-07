@@ -445,22 +445,12 @@ private fun FullHomeScreen(
 
                 recommended.firstOrNull()?.let { recipe ->
 
-                    // RecipesScreen과 동일한 재료 매칭 기준 적용
-                    val ingredientQuantityRegex = Regex(
-                        """\(?\d+(?:\.\d+)?(?:/\d+)?\s*(?:kg|g|mg|ml|l|개|모|팩|봉|장|대|통|구|병|캔|컵|인분)\)?$"""
-                    )
-                    fun normalizeIngredient(name: String): String = name
-                        .trim()
-                        .replace(" ", "")
-                        .replace("　", "")
-                        .replace(ingredientQuantityRegex, "")
-                        .trim()
-
+                    // RecipesScreen·추천 순서와 같은 재료 매칭 기준(ingredientKey) 적용
                     val matchedIngredientCount = recipe.ingredients.distinct().count { ingredient ->
-                        val recipeName = normalizeIngredient(ingredient)
+                        val recipeName = ingredientKey(ingredient)
                         recipeName.isNotBlank() && inventory.any { item ->
                             item.expiryStatus() != ExpiryStatus.EXPIRED &&
-                                    recipeName == normalizeIngredient(item.name)
+                                    recipeName == ingredientKey(item.name)
                         }
                     }
 
@@ -607,7 +597,7 @@ private fun UrgentRow(colors: EatdaColors, item: FoodItem, onClick: () -> Unit) 
                 .background(if (colors.isColorBlind) colors.surfaceAlt else Color(0xFFF1F4F0)),
             contentAlignment = Alignment.Center
         ) {
-            Text(foodEmoji[item.name] ?: item.name.first().toString(), fontSize = 18.sp)
+            Text(foodEmoji[item.name] ?: item.name.firstOrNull()?.toString() ?: "?", fontSize = 18.sp)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(item.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = homeInk(colors))
@@ -807,7 +797,7 @@ private fun ExpiredBannerItem(
                                         .background(Color(cat.hexColor).copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Text(foodEmoji[item.name] ?: item.name.first().toString(), fontSize = 16.sp)
+                                    Text(foodEmoji[item.name] ?: item.name.firstOrNull()?.toString() ?: "?", fontSize = 16.sp)
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.text)
