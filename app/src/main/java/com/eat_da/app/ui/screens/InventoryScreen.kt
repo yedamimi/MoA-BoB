@@ -131,6 +131,8 @@ fun InventoryScreen(
     onScanIngredients: (String) -> Unit,
     openImminentFilter: Boolean = false,
     onImminentFilterConsumed: () -> Unit = {},
+    openExpiredFilter: Boolean = false,
+    onExpiredFilterConsumed: () -> Unit = {},
 ) {
     var filter by remember { mutableStateOf(InvFilter.ALL) }
     var query by remember { mutableStateOf("") }
@@ -140,6 +142,14 @@ fun InventoryScreen(
             filter = InvFilter.CRITICAL
             query = ""
             onImminentFilterConsumed()
+        }
+    }
+
+    LaunchedEffect(openExpiredFilter) {
+        if (openExpiredFilter) {
+            filter = InvFilter.EXPIRED
+            query = ""
+            onExpiredFilterConsumed()
         }
     }
 
@@ -1440,3 +1450,4 @@ fun InventoryRow(
         }
     }
 }
+

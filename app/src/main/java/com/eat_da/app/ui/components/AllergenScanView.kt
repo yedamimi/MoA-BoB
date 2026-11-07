@@ -139,14 +139,11 @@ fun AllergenScanView(
 
     BackHandler(onBack = onClose)
 
-    val pageBackground = if (colors == ColorBlindEatdaColors) colors.bg else Color.White
+    val pageBackground = colors.surface
     val canScan = allergens.isNotEmpty() && phase != AllergenScanPhase.ANALYZING
-
-    val titleSize = if (a11yMode) 27.sp else 21.sp
-    val subtitleSize = if (a11yMode) 16.sp else 12.sp
-    val bodySize = if (a11yMode) 19.sp else 16.sp
-    val helperSize = if (a11yMode) 16.sp else 13.sp
-    val pageHorizontalPadding = if (a11yMode) 16.dp else 20.dp
+    val titleSize = if (a11yMode) 25.sp else 21.sp
+    val bodySize = if (a11yMode) 17.sp else 13.sp
+    val helperSize = if (a11yMode) 14.sp else 11.sp
 
     Column(
         modifier = Modifier.fillMaxSize().background(pageBackground),
@@ -157,20 +154,20 @@ fun AllergenScanView(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
-                modifier = Modifier.size(if (a11yMode) 54.dp else 42.dp).clip(RoundedCornerShape(if (a11yMode) 16.dp else 13.dp))
+                modifier = Modifier.size(if (a11yMode) 52.dp else 42.dp).clip(RoundedCornerShape(13.dp))
                     .background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(13.dp))
                     .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
-                EatdaIcon(EatdaIcons.Close, tint = colors.text, size = if (a11yMode) 22.dp else 16.dp)
+                EatdaIcon(EatdaIcons.Close, tint = colors.text, size = if (a11yMode) 21.dp else 16.dp)
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text("알레르기 유발 성분 확인", fontSize = titleSize, lineHeight = if (a11yMode) 34.sp else 27.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
+                Text("알레르기 유발 성분 확인", fontSize = titleSize, lineHeight = if (a11yMode) 32.sp else 26.sp, fontWeight = FontWeight.ExtraBold, color = colors.text)
                 Text(
                     if (allergens.isEmpty()) "등록된 알레르기가 없습니다"
                     else "내 알레르기: ${allergens.joinToString(", ") { it.name }}",
-                    fontSize = subtitleSize,
-                    lineHeight = if (a11yMode) 23.sp else 18.sp,
+                    fontSize = if (a11yMode) 15.sp else 12.sp,
+                    lineHeight = if (a11yMode) 21.sp else 16.sp,
                     color = colors.textMuted,
                 )
             }
@@ -180,8 +177,8 @@ fun AllergenScanView(
             Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("🥛", fontSize = if (a11yMode) 58.sp else 46.sp)
-                    Text("아직 등록한 알레르기가 없어요", fontSize = if (a11yMode) 23.sp else 18.sp, fontWeight = FontWeight.Bold, color = colors.text)
-                    Text("알레르기 성분을 확인하려면 먼저 등록해 주세요.", fontSize = if (a11yMode) 17.sp else 13.sp, color = colors.textMuted, textAlign = TextAlign.Center)
+                    Text("아직 등록한 알레르기가 없어요", fontSize = if (a11yMode) 22.sp else 18.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                    Text("알레르기 성분을 확인하려면 먼저 등록해 주세요.", fontSize = bodySize, color = colors.textMuted, textAlign = TextAlign.Center)
                     Text(
                         "마이페이지에서 등록하기 ›",
                         fontSize = if (a11yMode) 18.sp else 14.sp,
@@ -199,10 +196,10 @@ fun AllergenScanView(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        Text("📦", fontSize = if (a11yMode) 68.sp else 54.sp)
+                        Text("📦", fontSize = if (a11yMode) 66.sp else 54.sp)
                         Spacer(Modifier.height(18.dp))
-                        Text("제품 뒷면의 원재료명·알레르기 표시 부분을 찍어주세요", fontSize = bodySize, fontWeight = FontWeight.Bold, color = colors.text, textAlign = TextAlign.Center, lineHeight = if (a11yMode) 29.sp else 23.sp)
-                        Text("글자가 화면에 꽉 차고 흔들리지 않게 찍으면 더 정확해요.", fontSize = helperSize, color = colors.textMuted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp), lineHeight = if (a11yMode) 25.sp else 20.sp)
+                        Text("제품 뒷면의 원재료명·알레르기 표시 부분을 찍어주세요", fontSize = if (a11yMode) 20.sp else 16.sp, fontWeight = FontWeight.Bold, color = colors.text, textAlign = TextAlign.Center, lineHeight = if (a11yMode) 29.sp else 23.sp)
+                        Text("글자가 화면에 꽉 차고 흔들리지 않게 찍으면 더 정확해요.", fontSize = bodySize, color = colors.textMuted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp), lineHeight = if (a11yMode) 25.sp else 20.sp)
                     }
                 }
                 AllergenScanPhase.ANALYZING -> {
@@ -235,16 +232,9 @@ fun AllergenScanView(
                             val direct = parsed?.directHits.orEmpty()
                             val facility = parsed?.facilityHits.orEmpty()
                             when {
-                                direct.isNotEmpty() -> {
-                                    item { DirectResultBlock(direct, a11yMode) }
-                                    if (facility.isNotEmpty()) {
-                                        item { FacilityResultBlock(colors, facility, a11yMode) }
-                                    }
-                                    item { SafetyNote(colors, "섭취 전 제품 포장의 성분표를 다시 확인해 주세요.", a11yMode) }
-                                }
-                                facility.isNotEmpty() -> {
-                                    item { FacilityResultBlock(colors, facility, a11yMode) }
-                                    item { SafetyNote(colors, "민감하다면 섭취 전 제품 포장을 꼼꼼히 확인해 주세요.", a11yMode) }
+                                direct.isNotEmpty() || facility.isNotEmpty() -> {
+                                    item { ChecklistResultBlock(colors, allergens.size, direct, facility, a11yMode) }
+                                    item { SafetyNote(colors, "사진 인식 결과와 실제 표시가 다를 수 있어요. 섭취 전 제품 포장을 직접 확인해 주세요.", a11yMode) }
                                 }
                                 else -> {
                                     item {
@@ -259,14 +249,7 @@ fun AllergenScanView(
                                 }
                             }
                         }
-                        item {
-                            Text(
-                                "사진 인식 결과라 실제와 다를 수 있어요. 섭취 전 제품 포장을 직접 확인하세요.",
-                                fontSize = if (a11yMode) 14.sp else 10.sp,
-                                color = colors.textFaint,
-                                lineHeight = if (a11yMode) 21.sp else 15.sp,
-                            )
-                        }
+
                     }
                 }
             }
@@ -304,16 +287,12 @@ private fun SourceButton(
 ) {
     Row(
         modifier = modifier
-            .heightIn(min = if (a11yMode) 68.dp else 52.dp)
-            .clip(RoundedCornerShape(if (a11yMode) 18.dp else 15.dp))
+            .heightIn(min = if (a11yMode) 66.dp else 52.dp)
+            .clip(RoundedCornerShape(15.dp))
             .background(if (enabled) colors.accentSoft else colors.surfaceAlt)
-            .border(
-                1.dp,
-                colors.accent.copy(alpha = if (enabled) 0.25f else 0.1f),
-                RoundedCornerShape(if (a11yMode) 18.dp else 15.dp),
-            )
+            .border(1.dp, colors.accent.copy(alpha = if (enabled) 0.25f else 0.1f), RoundedCornerShape(15.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = if (a11yMode) 12.dp else 8.dp, vertical = if (a11yMode) 18.dp else 16.dp),
+            .padding(horizontal = 8.dp, vertical = if (a11yMode) 18.dp else 16.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -341,10 +320,10 @@ private fun ActionButton(
 ) {
     Box(
         modifier = modifier
-            .heightIn(min = if (a11yMode) 64.dp else 50.dp)
-            .clip(RoundedCornerShape(if (a11yMode) 18.dp else 14.dp))
+            .heightIn(min = if (a11yMode) 62.dp else 50.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(if (primary) colors.accent else colors.surface)
-            .border(if (primary) 0.dp else 1.dp, colors.border, RoundedCornerShape(if (a11yMode) 18.dp else 14.dp))
+            .border(if (primary) 0.dp else 1.dp, colors.border, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(vertical = if (a11yMode) 18.dp else 15.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center,
@@ -355,88 +334,116 @@ private fun ActionButton(
             lineHeight = if (a11yMode) 24.sp else 19.sp,
             fontWeight = FontWeight.Bold,
             color = if (primary) Color.White else colors.text,
-            textAlign = TextAlign.Center,
         )
     }
 }
 
 @Composable
-private fun ResultCard(background: Color, titleColor: Color, title: String, body: String, a11yMode: Boolean = false) {
+private fun ResultCard(
+    background: Color,
+    titleColor: Color,
+    title: String,
+    body: String,
+    a11yMode: Boolean = false,
+) {
     Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(background).padding(if (a11yMode) 22.dp else 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(background)
+            .padding(if (a11yMode) 22.dp else 16.dp),
+        verticalArrangement = Arrangement.spacedBy(if (a11yMode) 10.dp else 8.dp),
     ) {
-        Text(title, fontSize = if (a11yMode) 22.sp else 17.sp, fontWeight = FontWeight.ExtraBold, color = titleColor)
+        Text(title, fontSize = if (a11yMode) 21.sp else 17.sp, fontWeight = FontWeight.ExtraBold, color = titleColor)
         Text(body, fontSize = if (a11yMode) 17.sp else 13.sp, color = titleColor, lineHeight = if (a11yMode) 25.sp else 19.sp)
     }
 }
 
 @Composable
 private fun DirectResultBlock(
+    colors: EatdaColors,
     hits: List<com.eatda.app.data.model.AllergenIngredientHit>,
     a11yMode: Boolean,
 ) {
+    val names = hits.distinctBy { it.allergenName }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFFCEBE9))
-            .padding(if (a11yMode) 22.dp else 16.dp),
-        verticalArrangement = Arrangement.spacedBy(if (a11yMode) 13.dp else 9.dp),
+            .clip(RoundedCornerShape(22.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.danger.copy(alpha = 0.28f), RoundedCornerShape(22.dp)),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(colors.danger.copy(alpha = 0.09f))
+                .padding(if (a11yMode) 22.dp else 18.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Text("⚠", fontSize = if (a11yMode) 24.sp else 18.sp, color = Color(0xFFB3261E))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("⚠", fontSize = if (a11yMode) 21.sp else 17.sp, color = colors.danger)
+                Text("섭취 주의", fontSize = if (a11yMode) 17.sp else 13.sp, fontWeight = FontWeight.ExtraBold, color = colors.danger)
+            }
             Text(
-                "알레르기 성분이 포함되어 있어요",
-                fontSize = if (a11yMode) 20.sp else 15.sp,
-                lineHeight = if (a11yMode) 27.sp else 20.sp,
+                "${names.joinToString(" · ") { it.allergenName }}이(가)\n들어 있어요",
+                fontSize = if (a11yMode) 25.sp else 21.sp,
+                lineHeight = if (a11yMode) 33.sp else 27.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFFA52A22),
+                color = colors.text,
             )
         }
 
-        Text(
-            "성분표에서 직접 확인된 알레르기 성분입니다.",
-            fontSize = if (a11yMode) 16.sp else 12.sp,
-            color = Color(0xFF8C3932),
-            lineHeight = if (a11yMode) 24.sp else 18.sp,
-        )
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.padding(if (a11yMode) 22.dp else 18.dp),
+            verticalArrangement = Arrangement.spacedBy(if (a11yMode) 15.dp else 11.dp),
         ) {
-            hits.map { it.allergenName }.distinct().forEach { name ->
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(Color(0xFFF5D5D1))
-                        .padding(horizontal = if (a11yMode) 14.dp else 11.dp, vertical = if (a11yMode) 10.dp else 7.dp),
-                ) {
-                    Text(
-                        name,
-                        fontSize = if (a11yMode) 16.sp else 12.sp,
-                        lineHeight = if (a11yMode) 21.sp else 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFA52A22),
-                    )
+            names.forEachIndexed { index, hit ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            hit.allergenName,
+                            fontSize = if (a11yMode) 19.sp else 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.text,
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            hit.matchedTerms.distinct().forEach { term ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(999.dp))
+                                        .background(colors.danger.copy(alpha = 0.10f))
+                                        .padding(horizontal = if (a11yMode) 13.dp else 10.dp, vertical = if (a11yMode) 9.dp else 7.dp),
+                                ) {
+                                    Text(
+                                        term,
+                                        fontSize = if (a11yMode) 16.sp else 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.danger,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (index != names.lastIndex) {
+                        androidx.compose.material3.HorizontalDivider(color = colors.border.copy(alpha = 0.55f))
+                    }
                 }
             }
+            Text(
+                "오른쪽은 성분표에서 찾은 표기예요",
+                fontSize = if (a11yMode) 14.sp else 11.sp,
+                lineHeight = if (a11yMode) 21.sp else 16.sp,
+                color = colors.textMuted,
+            )
         }
-
-        Text(
-            "표시에서 찾은 표기: ${
-                hits.flatMap { it.matchedTerms }
-                    .distinct()
-                    .joinToString(", ") { "\"$it\"" }
-            }",
-            fontSize = if (a11yMode) 14.sp else 11.sp,
-            lineHeight = if (a11yMode) 21.sp else 16.sp,
-            color = Color(0xFF8C3932),
-        )
     }
 }
 
@@ -447,40 +454,177 @@ private fun FacilityResultBlock(
     a11yMode: Boolean,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFFFF4E3)) .padding(if (a11yMode) 22.dp else 16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.accent.copy(alpha = 0.28f), RoundedCornerShape(22.dp))
+            .padding(if (a11yMode) 22.dp else 18.dp),
         verticalArrangement = Arrangement.spacedBy(if (a11yMode) 13.dp else 9.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("ⓘ", fontSize = if (a11yMode) 24.sp else 18.sp, color = Color(0xFF9B6B1F))
-            Text("같은 시설에서 제조되는 성분", fontSize = if (a11yMode) 20.sp else 15.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF8A5B18))
+            Text("ⓘ", fontSize = if (a11yMode) 21.sp else 17.sp, color = colors.accent)
+            Text(
+                "같은 시설에서 제조",
+                fontSize = if (a11yMode) 18.sp else 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = colors.accentDeep,
+            )
         }
         Text(
-            "직접 원재료로 확인된 것은 아니지만, 아래 성분을 사용하는 제품과 같은 제조 시설에서 생산되었다는 표시가 있습니다.",
+            "원재료는 아니지만, 아래 성분을 사용하는 제품과 같은 시설에서 만들었다고 표시되어 있어요.",
             fontSize = if (a11yMode) 16.sp else 12.sp,
-            color = Color(0xFF80551E),
+            color = colors.textMuted,
             lineHeight = if (a11yMode) 24.sp else 18.sp,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
             hits.map { it.allergenName }.distinct().forEach { name ->
-                Box(modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(Color(0xFFFFE8C2)) .padding(horizontal = if (a11yMode) 14.dp else 11.dp, vertical = if (a11yMode) 10.dp else 7.dp)) {
-                    Text(name, fontSize = if (a11yMode) 16.sp else 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8A5B18))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(colors.accentSoft)
+                        .padding(horizontal = if (a11yMode) 14.dp else 11.dp, vertical = if (a11yMode) 10.dp else 7.dp),
+                ) {
+                    Text(
+                        name,
+                        fontSize = if (a11yMode) 16.sp else 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.accentDeep,
+                    )
                 }
             }
         }
         Text(
-            "표시에서 찾은 표기: ${hits.flatMap { it.matchedTerms }.distinct().joinToString(", ") { "\"$it\"" }}",
+            "찾은 표기 · ${hits.flatMap { it.matchedTerms }.distinct().joinToString(", ")}",
             fontSize = if (a11yMode) 14.sp else 11.sp,
             lineHeight = if (a11yMode) 21.sp else 16.sp,
-            color = Color(0xFF8A5B18),
+            color = colors.textMuted,
+        )
+    }
+}
+
+
+@Composable
+private fun ChecklistResultBlock(
+    colors: EatdaColors,
+    registeredCount: Int,
+    directHits: List<com.eatda.app.data.model.AllergenIngredientHit>,
+    facilityHits: List<com.eatda.app.data.model.AllergenIngredientHit>,
+    a11yMode: Boolean,
+) {
+    val direct = directHits.distinctBy { it.allergenName }
+    val facility = facilityHits.distinctBy { it.allergenName }.filterNot { hit -> direct.any { it.allergenName == hit.allergenName } }
+    val directCount = direct.size
+    val facilityCount = facility.size
+    val totalFound = directCount + facilityCount
+    val danger = Color(0xFF9F3527)
+    val dangerLight = Color(0xFFF9ECE9)
+    val amber = Color(0xFF94600F)
+    val amberLight = Color(0xFFFBF3E1)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(if (a11yMode) 19.dp else 14.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(danger)
+                .padding(if (a11yMode) 23.dp else 19.dp),
+            verticalArrangement = Arrangement.spacedBy(if (a11yMode) 13.dp else 9.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("⚠", fontSize = if (a11yMode) 22.sp else 17.sp, color = Color.White)
+                Text(if (directCount > 0) "이 제품은 피하는 게 좋아요" else "같은 시설 제조 표시가 있어요", fontSize = if (a11yMode) 17.sp else 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            }
+            Text(
+                if (directCount > 0) "내 알레르기 ${registeredCount}개 중\n${directCount}개가 들어 있어요" else "내 알레르기 성분과\n같은 시설 제조 표시가 있어요",
+                fontSize = if (a11yMode) 26.sp else 21.sp,
+                lineHeight = if (a11yMode) 34.sp else 27.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                ChecklistCountPill("포함 $directCount", Color.White, danger, a11yMode)
+                if (facilityCount > 0) ChecklistCountPill("같은 시설 $facilityCount", Color(0xFFD9A69D), Color.White, a11yMode)
+            }
+        }
+
+        Text("내 알레르기별 결과", fontSize = if (a11yMode) 17.sp else 13.sp, fontWeight = FontWeight.Bold, color = colors.textMuted)
+
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            (direct.map { Triple(it, true, it.matchedTerms.distinct()) } + facility.map { Triple(it, false, it.matchedTerms.distinct()) })
+                .forEachIndexed { index, (hit, isDirect, terms) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = if (a11yMode) 13.dp else 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(13.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier.size(if (a11yMode) 48.dp else 39.dp).clip(RoundedCornerShape(12.dp))
+                                .background(if (isDirect) dangerLight else amberLight),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(if (isDirect) "×" else "!", fontSize = if (a11yMode) 28.sp else 22.sp, fontWeight = FontWeight.Medium, color = if (isDirect) danger else amber)
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(hit.allergenName, fontSize = if (a11yMode) 19.sp else 15.sp, fontWeight = FontWeight.Bold, color = colors.text)
+                            Text(
+                                (if (isDirect) "성분표 표기 · " else "같은 시설 표기 · ") + terms.joinToString(", "),
+                                fontSize = if (a11yMode) 14.sp else 11.sp,
+                                lineHeight = if (a11yMode) 20.sp else 16.sp,
+                                color = colors.textMuted,
+                            )
+                        }
+                        Text(
+                            if (isDirect) "포함" else "같은 시설",
+                            fontSize = if (a11yMode) 15.sp else 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isDirect) danger else amber,
+                        )
+                    }
+                    if (index != totalFound - 1) {
+                        androidx.compose.material3.HorizontalDivider(color = colors.border.copy(alpha = 0.55f))
+                    }
+                }
+        }
+        Text(
+            "‘같은 시설’은 원재료는 아니지만 해당 성분을 쓰는 제품과 같은 곳에서 만들었다는 뜻이에요.",
+            fontSize = if (a11yMode) 14.sp else 11.sp,
+            lineHeight = if (a11yMode) 21.sp else 16.sp,
+            color = colors.textMuted,
         )
     }
 }
 
 @Composable
+private fun ChecklistCountPill(label: String, background: Color, foreground: Color, a11yMode: Boolean) {
+    Box(
+        modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(background)
+            .padding(horizontal = if (a11yMode) 15.dp else 11.dp, vertical = if (a11yMode) 9.dp else 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = if (a11yMode) 15.sp else 11.sp, fontWeight = FontWeight.Bold, color = foreground)
+    }
+}
+
+@Composable
 private fun SafetyNote(colors: EatdaColors, message: String, a11yMode: Boolean) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("ⓘ", fontSize = if (a11yMode) 20.sp else 15.sp, color = colors.danger)
-        Text(message, fontSize = if (a11yMode) 16.sp else 12.sp, fontWeight = FontWeight.SemiBold, color = colors.danger, lineHeight = if (a11yMode) 24.sp else 18.sp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.surfaceAlt)
+            .padding(if (a11yMode) 17.dp else 13.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("ⓘ", fontSize = if (a11yMode) 20.sp else 15.sp, color = colors.textMuted)
+        Text(
+            message,
+            fontSize = if (a11yMode) 16.sp else 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.text,
+            lineHeight = if (a11yMode) 24.sp else 18.sp,
+        )
     }
 }
 

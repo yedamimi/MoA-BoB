@@ -230,7 +230,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                     vm.deleteInventoryItem(item.id)
                 },
 
-            )
+                )
         }
 
         if (state.voiceOverlayOpen) {
@@ -274,6 +274,7 @@ private fun AppScreenContent(
     vm: AppViewModel,
 ) {
     var openImminentFilter by remember { mutableStateOf(false) }
+    var openExpiredFilter by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
         AnimatedContent(
             targetState = state.screen,
@@ -300,6 +301,11 @@ private fun AppScreenContent(
                     onGoRecipes    = { vm.navigate(Screen.RECIPES) },
                     onOpenRecipe   = { recipe -> vm.openRecipe(recipe) },
                     onGoInv        = { vm.navigate(Screen.INVENTORY) },
+                    onGoExpired    = {
+                        openExpiredFilter = true
+                        vm.openInventoryGroup(null)
+                        vm.navigate(Screen.INVENTORY)
+                    },
                     onOpenVoice    = vm::openVoice,
                     marketArrivals  = state.marketArrivals,
                     onDismissMarket = vm::dismissMarketArrivals,
@@ -316,6 +322,8 @@ private fun AppScreenContent(
                     inventory = state.inventory,
                     openImminentFilter = openImminentFilter,
                     onImminentFilterConsumed = { openImminentFilter = false },
+                    openExpiredFilter = openExpiredFilter,
+                    onExpiredFilterConsumed = { openExpiredFilter = false },
                     selectedFoodName = state.inventoryGroupName,
                     onSelectFood = vm::openInventoryGroup,
                     freshnessChecks = state.freshnessChecks,
