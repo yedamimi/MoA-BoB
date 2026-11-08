@@ -34,6 +34,7 @@ fun SettingsScreen(
     settings: AppSettings,
     onUpdateSettings: (AppSettings) -> Unit,
     onGoMyPage: () -> Unit = {},
+    webcamConnected: Boolean = false,   // scan.py 실행 중이면 스트림 주소가 있음
 ) {
     // 일반 모드: 저시력 사용자를 위해 제목/설명 대비를 높임.
     // 고대비·색각 보정 모드에서는 기존 팔레트 유지.
@@ -61,37 +62,37 @@ fun SettingsScreen(
                 )
                 SettingsDivider(colors)
                 SettingsRow(
-                    colors, sizes, EatdaIcons.Clock, "유통기한 D-DAY 알림", null,
+                    colors, sizes, EatdaIcons.Clock, "당일 알림", "소비기한이 오늘까지인 식재료",
                     right = {
-                        EatdaToggle(colors, on = settings.notifExpiryDDay, label = "D-DAY 알림") {
+                        EatdaToggle(colors, on = settings.notifExpiryDDay, label = "당일 알림") {
                             onUpdateSettings(settings.copy(notifExpiryDDay = it))
                         }
                     },
                 )
                 SettingsDivider(colors)
                 SettingsRow(
-                    colors, sizes, EatdaIcons.Clock, "유통기한 D-2 알림", null,
+                    colors, sizes, EatdaIcons.Clock, "경과 알림", "소비기한이 지난 식재료",
                     right = {
-                        EatdaToggle(colors, on = settings.notifExpiryD2, label = "D-2 알림") {
+                        EatdaToggle(colors, on = settings.notifExpiryOverdue, label = "경과 알림") {
+                            onUpdateSettings(settings.copy(notifExpiryOverdue = it))
+                        }
+                    },
+                )
+                SettingsDivider(colors)
+                SettingsRow(
+                    colors, sizes, EatdaIcons.Clock, "임박 알림", "소비기한이 1~3일 남은 식재료",
+                    right = {
+                        EatdaToggle(colors, on = settings.notifExpiryD2, label = "임박 알림") {
                             onUpdateSettings(settings.copy(notifExpiryD2 = it))
                         }
                     },
                 )
                 SettingsDivider(colors)
                 SettingsRow(
-                    colors, sizes, EatdaIcons.Clock, "유통기한 D-5 알림", null,
-                    right = {
-                        EatdaToggle(colors, on = settings.notifExpiryD5, label = "D-5 알림") {
-                            onUpdateSettings(settings.copy(notifExpiryD5 = it))
-                        }
-                    },
-                )
-                SettingsDivider(colors)
-                SettingsRow(
-                    colors, sizes, EatdaIcons.Clock, "유통기한 D-7 알림", null,
+                    colors, sizes, EatdaIcons.Clock, "주의 알림", "소비기한이 4~7일 남은 식재료",
                     last = true,
                     right = {
-                        EatdaToggle(colors, on = settings.notifExpiryD7, label = "D-7 알림") {
+                        EatdaToggle(colors, on = settings.notifExpiryD7, label = "주의 알림") {
                             onUpdateSettings(settings.copy(notifExpiryD7 = it))
                         }
                     },
@@ -166,10 +167,16 @@ fun SettingsScreen(
         item {
             SettingsGroup(colors, "냉장고") {
                 SettingsRow(
-                    colors, sizes, EatdaIcons.Camera, "USB 웹캠 연결", "갤럭시 + 외장 카메라 페어링",
+                    colors, sizes, EatdaIcons.Camera, "웹캠 스캔 연결",
+                    if (webcamConnected) "PC 웹캠 스캔 프로그램 실행 중" else "PC에서 스캔 프로그램(scan.py)을 실행해 주세요",
                     last = true,
                     right = {
-                        Text("연결됨", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.accent)
+                        Text(
+                            if (webcamConnected) "연결됨" else "연결 안 됨",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (webcamConnected) colors.accent else colors.textFaint,
+                        )
                     },
                 )
             }
@@ -179,7 +186,7 @@ fun SettingsScreen(
         item {
             SettingsGroup(colors, "계정") {
                 SettingsRow(
-                    colors, sizes, EatdaIcons.User, "프로필", "사용자 · user@example.com",
+                    colors, sizes, EatdaIcons.User, "프로필", "길민재 · 3mealsaday990102@gmail.com",
                     onClick = onGoMyPage,
                     right = { EatdaIcon(EatdaIcons.ChevronRight, tint = colors.textFaint, size = 18.dp) },
                 )

@@ -163,6 +163,7 @@ fun EatdaApp(vm: AppViewModel = viewModel()) {
                         if (state.activeScanMode != null) vm.closeScan()
                         if (state.phoneScanMode != null) vm.closePhoneScan()
                         if (state.allergenScanOpen) vm.closeAllergenScan()
+                        if (state.receiptScanOpen) vm.closeReceiptScan()
 
                         if (screen == Screen.RECIPES) {
                             vm.openRecipesFromNavigation()
@@ -413,6 +414,7 @@ private fun AppScreenContent(
                     settings = state.settings,
                     onUpdateSettings = vm::updateSettings,
                     onGoMyPage = { vm.navigate(Screen.MYPAGE) },
+                    webcamConnected = state.streamUrl != null,
                 )
                 Screen.HOUSEHOLD -> HouseholdScreen(
                     colors            = colors,

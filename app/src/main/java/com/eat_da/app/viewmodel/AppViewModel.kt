@@ -51,10 +51,11 @@ data class AppSettings(
     val fontScale: FontScale = FontScale.NORMAL,
     val simplifiedHome: Boolean = false,
     val notifAllergen: Boolean = true,
-    val notifExpiryDDay: Boolean = true,
-    val notifExpiryD2: Boolean = true,
-    val notifExpiryD5: Boolean = true,
-    val notifExpiryD7: Boolean = true,
+    val notifExpiryDDay: Boolean = true,   // 당일(D-DAY) 알림
+    val notifExpiryOverdue: Boolean = true, // 경과 알림
+    val notifExpiryD2: Boolean = true,     // 임박(D-1~3) 알림 (기존 이름 유지)
+    val notifExpiryD5: Boolean = true,     // 사용 안 함 (임박·주의 기준으로 통합), 다른 코드 호환용으로 남김
+    val notifExpiryD7: Boolean = true,     // 주의(D-4~7) 알림
     val notifRecipe: Boolean = true,
 )
 
@@ -626,25 +627,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         inventory.sortedBy { it.daysLeft() }.forEach { item ->
             val days = item.daysLeft()
+            // 재고·홈 화면과 같은 기준: 임박 D-0~3 (긴급) / 주의 D-4~7
+            // 구간을 범위로 나눠, 한 알림을 꺼도 다음 구간 알림으로 잘못 넘어가지 않도록 함
             val notif = when {
-                days <= 0 && settings.notifExpiryDDay -> AppNotification(
-                    id = "exp_d0_${item.id}", type = NotifType.EXPIRY_SOON,
-                    title = "${item.name} 유통기한 만료",
-                    body = "${item.location}에 보관 중입니다.", time = "오늘", urgent = true,
+                days < 0 && settings.notifExpiryOverdue -> AppNotification(
+                    id = "exp_over_${item.id}", type = NotifType.EXPIRY_SOON,
+                    title = "${item.name} 소비기한 ${-days}일 경과",
+                    body = "${item.location}에 보관 중입니다. 확인 후 정리해 주세요.", time = "오늘", urgent = true,
                 )
-                days <= 2 && settings.notifExpiryD2 -> AppNotification(
-                    id = "exp_d2_${item.id}", type = NotifType.EXPIRY_SOON,
-                    title = "${item.name} D-${days}",
+                days == 0 && settings.notifExpiryDDay -> AppNotification(
+                    id = "exp_d0_${item.id}", type = NotifType.EXPIRY_SOON,
+                    title = "${item.name} 오늘까지",
+                    body = "오늘 안에 사용해 주세요. 레시피 추천을 받아보세요.", time = "오늘", urgent = true,
+                )
+                days in 1..3 && settings.notifExpiryD2 -> AppNotification(
+                    id = "exp_d3_${item.id}", type = NotifType.EXPIRY_SOON,
+                    title = "${item.name} D-${days} 임박",
                     body = "레시피 추천을 받아보세요.", time = "오늘", urgent = true,
                 )
-                days <= 5 && settings.notifExpiryD5 -> AppNotification(
-                    id = "exp_d5_${item.id}", type = NotifType.EXPIRY_SOON,
-                    title = "${item.name} D-${days}",
-                    body = "${item.location}에 보관 중입니다.", time = "오늘", urgent = false,
-                )
-                days <= 7 && settings.notifExpiryD7 -> AppNotification(
+                days in 4..7 && settings.notifExpiryD7 -> AppNotification(
                     id = "exp_d7_${item.id}", type = NotifType.EXPIRY_SOON,
-                    title = "${item.name} D-${days}",
+                    title = "${item.name} D-${days} 주의",
                     body = "${item.location}에 보관 중입니다.", time = "오늘", urgent = false,
                 )
                 else -> null
@@ -784,7 +787,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         rootDb.child("current_mode").setValue(firebaseMode)
         db.child("scan_results").removeValue()
         db.child("scan_status").setValue("scanning")
-        _state.update { it.copy(scanSheetOpen = false, activeScanMode = mode, scanResults = emptyList(), scanPhase = "scanning") }
+        // 영수증·성분표 스캔 화면이 열려 있으면 닫음 (웹캠 스캔 화면을 덮어 버튼이 안 눌린 것처럼 보이던 문제)
+        _state.update {
+            it.copy(
+                scanSheetOpen = false,
+                receiptScanOpen = false,
+                allergenScanOpen = false,
+                allergenScanTargetItemId = null,
+                allergenScanTargetFoodName = null,
+                activeScanMode = mode,
+                scanResults = emptyList(),
+                scanPhase = "scanning",
+            )
+        }
     }
 
     fun closeScan() {
@@ -885,26 +900,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── 영수증 스캔 ─────────────────────────────────────────────────────────
 
-    fun openReceiptScan() = _state.update {
-        it.copy(
-            scanSheetOpen = false,
-            allergenScanOpen = false,
-            allergenScanTargetItemId = null,
-            allergenScanTargetFoodName = null,
-            receiptScanOpen = true
-        )
+    // 웹캠 스캔 중이면 scan.py도 멈추고 영수증 스캔으로 전환
+    private fun stopWebcamScanIfActive() {
+        if (_state.value.activeScanMode != null) closeScan()
+    }
+
+    fun openReceiptScan() {
+        stopWebcamScanIfActive()
+        _state.update {
+            it.copy(
+                scanSheetOpen = false,
+                allergenScanOpen = false,
+                allergenScanTargetItemId = null,
+                allergenScanTargetFoodName = null,
+                receiptScanOpen = true
+            )
+        }
     }
     fun closeReceiptScan() = _state.update { it.copy(receiptScanOpen = false) }
 
     // 알레르기 성분표 스캔
-    fun openAllergenScan() = _state.update {
-        it.copy(
-            scanSheetOpen = false,
-            receiptScanOpen = false,
-            allergenScanOpen = true,
-            allergenScanTargetItemId = null,
-            allergenScanTargetFoodName = null
-        )
+    fun openAllergenScan() {
+        stopWebcamScanIfActive()
+        _state.update {
+            it.copy(
+                scanSheetOpen = false,
+                receiptScanOpen = false,
+                allergenScanOpen = true,
+                allergenScanTargetItemId = null,
+                allergenScanTargetFoodName = null
+            )
+        }
     }
 
     // 재고 상세에서 특정 식재료의 성분표 스캔
@@ -1049,7 +1075,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openPhoneScan(mode: ScanMode) =
-        _state.update { it.copy(scanSheetOpen = false, phoneScanMode = mode, phoneScanResults = emptyList()) }
+        _state.update {
+            it.copy(
+                scanSheetOpen = false,
+                receiptScanOpen = false,
+                allergenScanOpen = false,
+                phoneScanMode = mode,
+                phoneScanResults = emptyList(),
+            )
+        }
 
     fun closePhoneScan() =
         _state.update { it.copy(phoneScanMode = null, phoneScanResults = emptyList()) }
