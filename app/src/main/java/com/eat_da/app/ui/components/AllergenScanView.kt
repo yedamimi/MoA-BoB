@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,6 +55,15 @@ fun AllergenScanView(
     onGoMyPage: () -> Unit,
     onScanComplete: (List<String>, List<String>) -> Unit = { _, _ -> },
     a11yMode: Boolean = false,
+    // ── 웹캠으로 찍기 (PC scan.py) ── onWebcamCapture가 null이면 버튼을 숨김
+    webcamStreamUrl: String? = null,
+    onWebcamStart: () -> Unit = {},
+    onWebcamStop: () -> Unit = {},
+    onWebcamCapture: (((String?, String?) -> Unit) -> Unit)? = null,
+    // 웹캠 결과를 PC 화면에 표시 (알레르기 단어에 빨간·주황 박스)
+    onWebcamResult: (AllergenIngredientResult) -> Unit = {},
+    // 웹캠 "다시 스캔" → PC 화면의 결과 표시를 지우고 실시간 화면으로
+    onWebcamReset: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -61,28 +71,36 @@ fun AllergenScanView(
     var phase by remember { mutableStateOf(AllergenScanPhase.IDLE) }
     var result by remember { mutableStateOf<AllergenIngredientResult?>(null) }
     var readFailed by remember { mutableStateOf(false) }
+    var webcamMode by remember { mutableStateOf(false) }   // 웹캠 실시간 화면을 보고 있는 중
 
+    fun stopWebcam() {
+        if (webcamMode) {
+            webcamMode = false
+            onWebcamStop()
+        }
+    }
+
+    // 웹캠으로 찍은 경우 "다시 스캔"하면 웹캠 화면으로 돌아감
     fun resetScan() {
+        if (webcamMode) onWebcamReset()
         phase = AllergenScanPhase.IDLE
         result = null
         readFailed = false
     }
 
-    fun analyze(uri: Uri) {
-        phase = AllergenScanPhase.ANALYZING
-        result = null
-        readFailed = false
-        scope.launch {
-            val bytes = withContext(Dispatchers.IO) { loadAllergenImageJpeg(context, uri) }
-            val text = bytes?.let { VisionService.extractText(it) }
-            if (bytes == null || text.isNullOrBlank()) {
-                readFailed = true
-                phase = AllergenScanPhase.DONE
-                onToast("성분표를 읽지 못했어요. 다시 촬영해 주세요.")
-                if (ttsEnabled) TtsService.speak(context, "성분표를 읽지 못했습니다. 다시 촬영해 주세요.")
-                return@launch
-            }
-
+    // 폰 사진·웹캠 모두 읽은 글자를 같은 기준으로 분석
+    fun analyzeText(
+        text: String?,
+        failMessage: String = "성분표를 읽지 못했어요. 다시 촬영해 주세요.",
+    ): AllergenIngredientResult? {
+        if (text.isNullOrBlank()) {
+            readFailed = true
+            phase = AllergenScanPhase.DONE
+            onToast(failMessage)
+            if (ttsEnabled) TtsService.speak(context, "성분표를 읽지 못했습니다. 다시 촬영해 주세요.")
+            return null
+        }
+        return run {
             val parsed = AllergenIngredientParser.analyze(text, allergens)
             result = parsed
             phase = AllergenScanPhase.DONE
@@ -119,6 +137,30 @@ fun AllergenScanView(
                     if (ttsEnabled) TtsService.speak(context, "등록한 알레르기 성분을 찾지 못했습니다.")
                 }
             }
+            parsed
+        }
+    }
+
+    fun analyze(uri: Uri) {
+        phase = AllergenScanPhase.ANALYZING
+        result = null
+        readFailed = false
+        scope.launch {
+            val bytes = withContext(Dispatchers.IO) { loadAllergenImageJpeg(context, uri) }
+            val text = bytes?.let { VisionService.extractText(it) }
+            analyzeText(text)
+        }
+    }
+
+    fun captureFromWebcam() {
+        val capture = onWebcamCapture ?: return
+        phase = AllergenScanPhase.ANALYZING
+        result = null
+        readFailed = false
+        // 결과가 나와도 웹캠 화면은 유지 → PC가 촬영 화면에 알레르기 단어를 표시해 보여줌
+        capture { text, error ->
+            val parsed = if (error != null) analyzeText(null, failMessage = error) else analyzeText(text)
+            if (parsed != null) onWebcamResult(parsed)
         }
     }
 
@@ -137,7 +179,10 @@ fun AllergenScanView(
         if (uri != null) analyze(uri)
     }
 
-    BackHandler(onBack = onClose)
+    // 웹캠 화면에서 뒤로가기 → 웹캠만 닫고 성분표 스캔 첫 화면으로
+    BackHandler {
+        if (webcamMode && phase == AllergenScanPhase.IDLE) stopWebcam() else onClose()
+    }
 
     val pageBackground = colors.surface
     val canScan = allergens.isNotEmpty() && phase != AllergenScanPhase.ANALYZING
@@ -190,7 +235,9 @@ fun AllergenScanView(
             }
         } else {
             when (phase) {
-                AllergenScanPhase.IDLE -> {
+                AllergenScanPhase.IDLE -> if (webcamMode) {
+                    WebcamLabelPreview(colors, webcamStreamUrl, a11yMode, Modifier.weight(1f))
+                } else {
                     Column(
                         modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -217,6 +264,10 @@ fun AllergenScanView(
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        // 웹캠으로 찍었으면 PC가 표시한 결과 화면(알레르기 단어 박스)을 맨 위에
+                        if (webcamMode) {
+                            item { WebcamStreamBox(webcamStreamUrl, a11yMode) }
+                        }
                         if (readFailed) {
                             item {
                                 ResultCard(
@@ -254,13 +305,29 @@ fun AllergenScanView(
                 }
             }
 
-            if (phase == AllergenScanPhase.IDLE) {
+            if (phase == AllergenScanPhase.IDLE && webcamMode) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    SourceButton(colors, Modifier.weight(1f), "📷", "성분표 촬영", canScan, a11yMode) { takePicture.launch(photoUri) }
-                    SourceButton(colors, Modifier.weight(1f), "🖼️", "앨범에서 선택", canScan, a11yMode) { pickImage.launch("image/*") }
+                    ActionButton(colors, Modifier.weight(1f), "취소", false, a11yMode, onClick = ::stopWebcam)
+                    ActionButton(colors, Modifier.weight(1f), "📸 촬영", true, a11yMode, onClick = ::captureFromWebcam)
+                }
+            } else if (phase == AllergenScanPhase.IDLE) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SourceButton(colors, Modifier.weight(1f), "📷", "성분표 촬영", canScan, a11yMode) { takePicture.launch(photoUri) }
+                        SourceButton(colors, Modifier.weight(1f), "🖼️", "앨범에서 선택", canScan, a11yMode) { pickImage.launch("image/*") }
+                    }
+                    if (onWebcamCapture != null) {
+                        SourceButton(colors, Modifier.fillMaxWidth(), "🖥️", "웹캠으로 찍기", canScan, a11yMode) {
+                            webcamMode = true
+                            onWebcamStart()
+                        }
+                    }
                 }
             } else if (phase == AllergenScanPhase.DONE) {
                 Row(
@@ -272,6 +339,80 @@ fun AllergenScanView(
                 }
             }
         }
+    }
+}
+
+// PC 웹캠 화면 (scan.py가 노란 박스·결과 표시를 그려서 보냄)
+@Composable
+private fun WebcamStreamBox(streamUrl: String?, a11yMode: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF1F1B16)),
+        contentAlignment = Alignment.Center,
+    ) {
+        MjpegView(
+            url = streamUrl,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+        ) {
+            Column(
+                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (streamUrl == null) {
+                    Text("🖥️", fontSize = if (a11yMode) 34.sp else 28.sp)
+                    Text(
+                        "PC에서 스캔 프로그램(scan.py)을 실행해 주세요",
+                        fontSize = if (a11yMode) 16.sp else 13.sp,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                    )
+                } else {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp)
+                    Text(
+                        "웹캠 화면을 불러오는 중...",
+                        fontSize = if (a11yMode) 16.sp else 13.sp,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// 웹캠 촬영 대기 화면: 실시간 화면 + 안내 문구
+@Composable
+private fun WebcamLabelPreview(
+    colors: EatdaColors,
+    streamUrl: String?,
+    a11yMode: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        WebcamStreamBox(streamUrl, a11yMode)
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "성분표를 웹캠 앞 노란 박스 안에 맞춰주세요",
+            fontSize = if (a11yMode) 20.sp else 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = colors.text,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            "글자가 박스에 꽉 차고 흔들리지 않을 때 촬영을 누르면 더 정확해요.",
+            fontSize = if (a11yMode) 17.sp else 13.sp,
+            color = colors.textMuted,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 

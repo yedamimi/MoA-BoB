@@ -176,6 +176,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var freshnessChecksListener:   ValueEventListener? = null
     private var allergenHapticFired = false
 
+    // 웹캠 성분표 스캔 (scan.py ALLERGEN 모드)
+    private var webcamLabelActive = false
+    private var webcamLabelListener: ValueEventListener? = null
+    private var webcamLabelTimeout: kotlinx.coroutines.Job? = null
+    private var webcamLabelRequestId: String? = null   // 마지막 촬영 요청 (결과 표시용)
+
     // 유통기한 촬영으로 소비기한을 옮긴 스캔 결과 → 현재 재고 키 (다시 촬영할 때 사용)
     private val ocrItemIds = mutableMapOf<String, String>()
 
@@ -778,6 +784,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun beginScan(mode: ScanMode) {
+        cancelWebcamLabelRequest()
+        webcamLabelActive = false
         allergenHapticFired = false
         ocrItemIds.clear()
         val firebaseMode = when (mode) {
@@ -907,6 +915,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openReceiptScan() {
         stopWebcamScanIfActive()
+        stopWebcamLabelScan()
         _state.update {
             it.copy(
                 scanSheetOpen = false,
@@ -943,12 +952,98 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun closeAllergenScan() = _state.update {
-        it.copy(
-            allergenScanOpen = false,
-            allergenScanTargetItemId = null,
-            allergenScanTargetFoodName = null
+    fun closeAllergenScan() {
+        stopWebcamLabelScan()
+        _state.update {
+            it.copy(
+                allergenScanOpen = false,
+                allergenScanTargetItemId = null,
+                allergenScanTargetFoodName = null
+            )
+        }
+    }
+
+    // ── 웹캠 성분표 스캔 ─────────────────────────────────────────────────────
+    // 성분표 스캔 화면의 "웹캠으로 찍기" → scan.py를 ALLERGEN 모드로 전환 (웹캠 화면이 앱에 나옴)
+    fun startWebcamLabelScan() {
+        webcamLabelActive = true
+        db.child("allergen_capture").removeValue()
+        db.child("allergen_ocr").removeValue()
+        db.child("allergen_marks").removeValue()
+        rootDb.child("current_mode").setValue("ALLERGEN")
+    }
+
+    // 웹캠 화면을 닫으면 scan.py를 대기 상태로 (다른 웹캠 스캔 중이면 건드리지 않음)
+    fun stopWebcamLabelScan() {
+        cancelWebcamLabelRequest()
+        if (!webcamLabelActive) return
+        webcamLabelActive = false
+        if (_state.value.activeScanMode == null) rootDb.child("current_mode").setValue("IDLE")
+    }
+
+    // 촬영 요청 → scan.py가 노란 박스 영역을 Cloud Vision으로 읽어 eatda/allergen_ocr에 결과를 씀
+    // onResult(읽은 글자, 실패 사유) 중 하나만 값이 있음
+    fun captureWebcamLabel(onResult: (String?, String?) -> Unit) {
+        cancelWebcamLabelRequest()
+        val requestId = System.currentTimeMillis().toString()
+        webcamLabelRequestId = requestId
+        db.child("allergen_marks").removeValue()
+        val ocrRef = db.child("allergen_ocr")
+        var finished = false
+
+        fun finish(text: String?, error: String?) {
+            if (finished) return
+            finished = true
+            cancelWebcamLabelRequest()
+            onResult(text, error)
+        }
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.child("requestId").getValue(String::class.java) != requestId) return
+                when (snapshot.child("status").getValue(String::class.java)) {
+                    "done"  -> finish(snapshot.child("text").getValue(String::class.java).orEmpty(), null)
+                    "error" -> finish(null, snapshot.child("error").getValue(String::class.java) ?: "성분표를 읽지 못했어요")
+                }
+            }
+            override fun onCancelled(error: DatabaseError) = finish(null, "연결이 끊겼어요")
+        }
+        webcamLabelListener = listener
+        ocrRef.addValueEventListener(listener)
+        db.child("allergen_capture").setValue(requestId)
+
+        webcamLabelTimeout = viewModelScope.launch {
+            kotlinx.coroutines.delay(30_000)
+            finish(null, "PC 스캔 프로그램이 응답하지 않아요. scan.py가 켜져 있는지 확인해 주세요.")
+        }
+    }
+
+    // 앱이 판정한 결과를 PC로 보냄 → scan.py가 촬영 화면의 해당 단어에 박스를 그림
+    // (빨강: 섭취 주의 / 주황: 같은 시설 제조)
+    fun reportWebcamLabelResult(result: AllergenIngredientResult) {
+        val requestId = webcamLabelRequestId ?: return
+        db.child("allergen_marks").setValue(
+            mapOf(
+                "requestId"     to requestId,
+                "directTerms"   to result.directHits.flatMap { it.matchedTerms }.distinct(),
+                "facilityTerms" to result.facilityHits.flatMap { it.matchedTerms }.distinct(),
+                "directNames"   to result.directHits.map { it.allergenName }.distinct(),
+                "facilityNames" to result.facilityHits.map { it.allergenName }.distinct(),
+            )
         )
+    }
+
+    // "다시 스캔" → PC 화면의 결과 표시를 지우고 실시간 화면으로
+    fun clearWebcamLabelResult() {
+        webcamLabelRequestId = null
+        db.child("allergen_marks").removeValue()
+    }
+
+    private fun cancelWebcamLabelRequest() {
+        webcamLabelListener?.let { db.child("allergen_ocr").removeEventListener(it) }
+        webcamLabelListener = null
+        webcamLabelTimeout?.cancel()
+        webcamLabelTimeout = null
     }
     // 같은 이름의 가공식품 재고 전체에 알레르기 정보 저장
     fun saveProductAllergensForFood(
@@ -1636,6 +1731,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        cancelWebcamLabelRequest()
         inventoryListener?.let        { rootDb.child("MoA-BoB").child("foodInventory").removeEventListener(it) }
         pendingDeliveryListener?.let  { rootDb.child("MoA-BoB").child("pendingDelivery").removeEventListener(it) }
         scanResultsListener?.let      { db.child("scan_results").removeEventListener(it) }

@@ -508,6 +508,13 @@ private fun AppScreenContent(
                     }
                 },
                 a11yMode = state.settings.a11yMode,
+                // 웹캠으로 찍기 (PC scan.py ALLERGEN 모드)
+                webcamStreamUrl = state.streamUrl,
+                onWebcamStart = vm::startWebcamLabelScan,
+                onWebcamStop = vm::stopWebcamLabelScan,
+                onWebcamCapture = vm::captureWebcamLabel,
+                onWebcamResult = vm::reportWebcamLabelResult,
+                onWebcamReset = vm::clearWebcamLabelResult,
             )
         }
 
