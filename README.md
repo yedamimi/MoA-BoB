@@ -173,33 +173,8 @@
 ---
 
 ## 🏗️ 시스템 구성
+![모아밥 시스템 구성도](system_architecture.png)
 
-```mermaid
-flowchart TB
-    subgraph DEVICE["📷 스캔 장치 (PC + 웹캠)"]
-        SCAN["Python · OpenCV<br/>YOLOv8 · EfficientNet-B0<br/>EasyOCR · pyzbar"]
-    end
-
-    subgraph APP["📱 Android 앱 (모아밥)"]
-        ANDROID["Kotlin · Jetpack Compose<br/>MVVM · STT/TTS<br/>재고 관리 · 스캔 결과"]
-    end
-
-    DB[("🔥 Firebase<br/>Realtime Database")]
-    MARKET["🛒 싱싱마켓 (Web)"]
-
-    SCAN -->|"MJPEG 스트림<br/>동일 Wi-Fi"| ANDROID
-
-    SCAN <-->|"재고·신선도 기록 / 스캔 결과<br/>foodInventory · freshnessChecks<br/>scan_results · scan_hint"| DB
-
-    ANDROID <-->|"모드·대상 설정 / 상태 수신<br/>current_mode · fresh_target<br/>stream_url"| DB
-
-    MARKET -->|"pendingDelivery"| DB
-
-    style DEVICE fill:#EAF4FF,stroke:#77A8D8,color:#163D66
-    style APP fill:#EAF4FF,stroke:#77A8D8,color:#163D66
-    style DB fill:#FFF3DC,stroke:#D5A04B,color:#805006
-    style MARKET fill:#E8F7F0,stroke:#77BF98,color:#28694D
-```
 
 **동작 흐름**
 
