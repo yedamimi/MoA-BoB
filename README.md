@@ -20,16 +20,17 @@
 
 ## 📌 목차
 
-- [프로젝트 소개](#-프로젝트-소개)
-- [주요 기능](#-주요-기능)
-- [접근성 (배리어프리)](#-접근성-배리어프리)
-- [화면 구성](#-화면-구성)
-- [시스템 구성](#-시스템-구성)
-- [기술 스택](#-기술-스택)
-- [프로젝트 구조](#-프로젝트-구조)
-- [Firebase 데이터 구조](#-firebase-데이터-구조)
-- [AI 신선도 판별 모델](#-ai-신선도-판별-모델)
-- [시작하기](#-시작하기)
+- [🌱 프로젝트 소개](#-프로젝트-소개)
+- [✨ 주요 기능](#-주요-기능)
+- [♿ 접근성 (배리어프리)](#-접근성-배리어프리)
+- [🎬 시연 영상](#-시연-영상)
+- [🏗️ 시스템 구성](#-시스템-구성)
+- [🛠️ 기술 스택](#-기술-스택)
+- [📁 프로젝트 구조](#-프로젝트-구조)
+- [🗄️ Firebase 데이터 구조](#-firebase-데이터-구조)
+- [🧠 AI 신선도 판별 모델](#-ai-신선도-판별-모델)
+- [🚀 시작하기](#-시작하기)
+- [👥 Team Members](#-team-members)
 
 ---
 
@@ -152,23 +153,10 @@
 
 ---
 
+## 🎬 시연 영상
 
-## 📱 화면 구성
 
-| 홈 화면 | 재고 목록 | 재고 상세 | 긴급 알림 | 설정 | 공동 관리자 |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| <img src="./docs/screenshots/home.jpg" width="160"/> | <img src="./docs/screenshots/inventory.jpg" width="160"/> | <img src="./docs/screenshots/inventory-detail.jpg" width="160"/> | <img src="./docs/screenshots/notification.jpg" width="160"/> | <img src="./docs/screenshots/settings.jpg" width="160"/> | <img src="./docs/screenshots/shared-fridge.jpg" width="160"/> |
-
-| 입고 화면 | 출고 화면 | 신선도 분석 | 영수증 스캔 | 알레르기 등록 | 알레르기 스캔 |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| <img src="./docs/screenshots/inbound.jpg" width="160"/> | <img src="./docs/screenshots/outbound.jpg" width="160"/> | <img src="./docs/screenshots/freshness.jpg" width="160"/> | <img src="./docs/screenshots/receipt.jpg" width="160"/> | <img src="./docs/screenshots/allergy-register.jpg" width="160"/> | <img src="./docs/screenshots/allergy-scan.jpg" width="160"/> |
-
-| 레시피 추천 | 음성 화면 | 간소화 화면 | 접근성 모드 | 색상 접근성 모드 | 마켓 연동 |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| <img src="./docs/screenshots/recipe.jpg" width="160"/> | <img src="./docs/screenshots/voice.jpg" width="160"/> | <img src="./docs/screenshots/simple-mode.jpg" width="160"/> | <img src="./docs/screenshots/accessibility.jpg" width="160"/> | <img src="./docs/screenshots/color-accessibility.jpg" width="160"/> | <img src="./docs/screenshots/market.jpg" width="160"/> |
-
-<br/>
-
+https://github.com/user-attachments/assets/bc33fcd9-641c-48bd-8687-098c86496276
 
 ---
 
